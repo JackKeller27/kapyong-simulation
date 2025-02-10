@@ -17,13 +17,15 @@ to setup
   ; Remove header row
    set gradient-data but-first gradient-data
 
+  print first gradient-data
+
   ; Initialize min and max gradient values
   set min-gradient 999999  ; Start with a very high number
   set max-gradient -999999 ; Start with a very low number
 
   ; Rest of your setup code remains the same
-  set num-patches-x 30
-  set num-patches-y 30
+  set num-patches-x 20
+  set num-patches-y 20
   set lat-min 37.87
   set lat-max 37.89
   set lon-min 127.46
@@ -36,8 +38,8 @@ ask patches [
   let patch-lon (lon-max - lon-min) / num-patches-x * (patch-x + 0.5) + lon-min
 
   let matching-gradients filter [ [entry] ->
-    (item 1 entry >= (patch-lon - 0.0005) and item 1 entry <= (patch-lon + 0.0005)) and
-    (item 0 entry >= (patch-lat - 0.0005) and item 0 entry <= (patch-lat + 0.0005))
+    (item 1 entry >= (patch-lon - 0.001) and item 1 entry <= (patch-lon + 0.001)) and
+    (item 0 entry >= (patch-lat - 0.001) and item 0 entry <= (patch-lat + 0.001))
   ] gradient-data
 
   if length matching-gradients > 0 [
@@ -45,7 +47,8 @@ ask patches [
       ; Update min and max gradient values
       if avg-gradient < min-gradient [ set min-gradient avg-gradient ]
       if avg-gradient > max-gradient [ set max-gradient avg-gradient ]
-      ; Temporarily store the gradient value for inspection
+
+      ; Display the gradient value for each patch
       set plabel avg-gradient
       set plabel-color black
     ]
@@ -53,9 +56,18 @@ ask patches [
 
   ; Now color patches based on the actual gradient range
   ask patches [
-    if plabel != 0 [  ; Only color patches with a gradient value
-      set pcolor scale-color 10 plabel min-gradient max-gradient
+    if plabel != "" [
+      set pcolor scale-color brown plabel min-gradient max-gradient
     ]
+    if plabel = ""
+    [
+      set pcolor 5  ; Gray for patches with no data
+    ]
+  ]
+
+  ; Remove patch labels
+  ask patches [
+    set plabel ""
   ]
 
   reset-ticks
@@ -68,8 +80,8 @@ end
 GRAPHICS-WINDOW
 210
 10
-647
-448
+751
+552
 -1
 -1
 13.0
@@ -82,10 +94,10 @@ GRAPHICS-WINDOW
 1
 1
 1
--16
-16
--16
-16
+-20
+20
+-20
+20
 0
 0
 1
