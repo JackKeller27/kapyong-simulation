@@ -1,59 +1,208 @@
 extensions [csv]
 
 globals [
+  ; CSV data
   gradient-data
+  elevation-data
+
+  ; Patch data
   num-patches-x
   num-patches-y
   lat-min lat-max lon-min lon-max
-  min-gradient  ; Track min gradient for scaling
-  max-gradient  ; Track max gradient for scaling
+  min-gradient max-gradient ; Track min/max gradients for scaling
+
+  lat-range lon-range
+  patch-lat-dim patch-lon-dim
+
+  ; Custom colors
+  dark-green
+  light-green
+  brownish-green
+  light-brown
+  dark-brown
 ]
 
+; SETUP
 to setup
   clear-all
 
-  ; Load and convert CSV data to numbers
-  set gradient-data csv:from-file "./Data processing/hill_677_gradients_per_point.csv"
-  ; Remove header row
-   set gradient-data but-first gradient-data
+;  ; Patch setup
+;  set num-patches-x max-pxcor * 2 + 1 ; + 1 accounts for patch 00
+;  set num-patches-y max-pycor * 2 + 1 ; + 1 accounts for patch 00
+
+  ; Set custom colors
+  set light-green 66
+  set dark-green 64
+  set brownish-green 36
+  set light-brown 35
+  set dark-brown 32
+
+  ; Load elevation, gradient data
+  set gradient-data csv:from-file "./data_processing/hill_677_gradient_data.csv"
+  set elevation-data csv:from-file "./data_processing/hill_677_elevation_data.csv"
+
+  ; Remove headers
+  set gradient-data but-first gradient-data
+  set elevation-data but-first elevation-data
+
+  ; Test data was loaded properly
+  ; print "csv data"
+;  print first gradient-data
+;  print first elevation-data
 
   ; Initialize min and max gradient values
-  set min-gradient 999999  ; Start with a very high number
-  set max-gradient -999999 ; Start with a very low number
+  set min-gradient 999999
+  set max-gradient -999999
 
-  ; Rest of your setup code remains the same
-  set num-patches-x 30
-  set num-patches-y 30
-  set lat-min 37.87
-  set lat-max 37.89
-  set lon-min 127.46
-  set lon-max 127.50
+  ; From hill_677_elevation_data:
+  set lat-min 37.87275855821296
+  set lat-max 37.89375855821291
+  set lon-min 127.4644423642252
+  set lon-max 127.49544236422535
 
-ask patches [
-  let patch-x pxcor
-  let patch-y pycor
-  let patch-lat (lat-max - lat-min) / num-patches-y * (patch-y + 0.5) + lat-min
-  let patch-lon (lon-max - lon-min) / num-patches-x * (patch-x + 0.5) + lon-min
+  ; Calculate lat/lon range of model
+  set lat-range (lat-max - lat-min)
+  set lon-range (lon-max - lon-min)
+;  print "lat/lon range:"
+;  print lat-range
+;  print lon-range
+  ; WORKING above this point
 
-  let matching-gradients filter [ [entry] ->
-    (item 1 entry >= (patch-lon - 0.0005) and item 1 entry <= (patch-lon + 0.0005)) and
-    (item 0 entry >= (patch-lat - 0.0005) and item 0 entry <= (patch-lat + 0.0005))
-  ] gradient-data
+  ; COMMENTED CODE BELOW IS BROKEN
+;  ; Calculate lat/lon dimensions of each patch
+;  set patch-lat-dim (lat-range / num-patches-x)  ; Use num-patches-x for latitude (x-direction)
+;  set patch-lon-dim (lon-range / num-patches-y)  ; Use num-patches-y for longitude (y-direction)
+;  print "lat/lon patch dims:"
+;  print patch-lat-dim
+;  print patch-lon-dim
 
+   ; Convert patch coords -> lat/lon
+;  ; Aggregate the gradient data to the patch level (compute an average gradient per patch)
+;  ; The code below runs per patch
+;  ask patches [
+;    ; Get coordinates for the current patch
+;    let patch-x-coord pxcor
+;    let patch-y-coord pycor
+;
+;;    ; Calculate the latitude/longitude of the center of the patch
+;;    let patch-lat (lat-range / num-patches-x) * (patch-x-coord) + lat-min
+;;    let patch-lon (lon-range / num-patches-y) * (patch-y-coord) + lon-min
+;
+;;    print "patch coords:"
+;;    print patch-lat
+;;    print patch-lon
+;
+;    ; Aggregate the gradient data per patch based on the threshold calculated above
+;    let matching-gradients filter [ [entry] ->
+;      (item 0 entry >= (patch-lat - patch-lat-dim / 2) and item 0 entry <= (patch-lat + patch-lat-dim / 2)) and
+;      (item 1 entry >= (patch-lon - patch-lon-dim / 2) and item 1 entry <= (patch-lon + patch-lon-dim / 2))
+;    ] gradient-data
+;;    print (word "matching-gradients length: " (length matching-gradients))  ; Debugging
+;
+;    ; hardcoded thresholds
+;;    let matching-gradients filter [ [entry] ->
+;;      (item 1 entry >= (patch-lon - 0.001) and item 1 entry <= (patch-lon + 0.001)) and
+;;      (item 0 entry >= (patch-lat - 0.001) and item 0 entry <= (patch-lat + 0.001))
+;;    ] gradient-data
+;
+;    if length matching-gradients > 0 [
+;      ; Calculate the average gradient of the patch
+;      let avg-gradient mean map [ [entry] -> item 2 entry ] matching-gradients
+;
+;      ; Update min and max gradient values
+;      if avg-gradient < min-gradient [
+;        set min-gradient avg-gradient
+;        print min-gradient
+;      ]
+;      if avg-gradient > max-gradient [
+;        set max-gradient avg-gradient
+;        print max-gradient
+;      ]
+;
+;      ; Set the gradient value for each patch
+;      set plabel avg-gradient
+;      set plabel-color black
+;    ]
+;  ]
 
+  ; Aggregate the gradient data to the patch level (compute an average gradient per patch)
+  ; Convert gradient lat/lon coords -> patch coords
+  ; Working?! Need to try fixing Python code
+  ask patches [
+    ; Get coordinates for the current patch
+    let patch-x-coord pxcor
+    let patch-y-coord pycor
+
+    ; Find matching gradients that are within 0.5 of the current patch coordinates
+    ; Normalizes lat/lon coordinates for gradients to lat=[min-pxcor, max-pxcor] and lon=[min-pycor, max-pycor]
+    let matching-gradients filter [ [entry] ->
+      (abs ((((item 0 entry - lat-min) / lat-range) * (max-pxcor - min-pxcor) + min-pxcor) - patch-x-coord) <= 0.5) and
+      (abs ((((item 1 entry - lon-min) / lon-range) * (max-pycor - min-pycor) + min-pycor) - patch-y-coord) <= 0.5)
+    ] gradient-data
+;    print (word "matching-gradients length: " (length matching-gradients))  ; Debugging
+
+    ; Compute average gradient for matching gradients
+    if length matching-gradients > 0 [
+      let avg-gradient mean map [ [gradient-entry] -> item 2 gradient-entry ] matching-gradients
+
+      ; Update min/max gradient values
+      if avg-gradient < min-gradient [
+        set min-gradient avg-gradient
+      ]
+      if avg-gradient > max-gradient [
+        set max-gradient avg-gradient
+      ]
+
+      ; Set the gradient value for the patch
+      set plabel avg-gradient
+      set plabel-color black
+    ]
+  ]
+
+  ; Now color patches based on the their gradients
+  ; WORKING
+  ask patches [
+    if plabel != "" [
+      ; Brown scale
+      ; set pcolor scale-color brown plabel min-gradient max-gradient
+
+      ; Green -> Brown scale
+      let gradient plabel
+      let norm-gradient (gradient - min-gradient) / (max-gradient - min-gradient) ; normalize gradient between [0, 1]
+
+      ; Assign color based on thresholded ranges
+      if norm-gradient < 0.2 [ set pcolor light-green ]  ; Flat grass
+      if norm-gradient >= 0.2 and norm-gradient < 0.4 [ set pcolor dark-green ]  ; Light hills
+      if norm-gradient >= 0.4 and norm-gradient < 0.6 [ set pcolor brownish-green ]  ; Medium terrain
+      if norm-gradient >= 0.6 and norm-gradient < 0.8 [ set pcolor light-brown ]  ;; Steeper terrain
+      if norm-gradient >= 0.8 [ set pcolor dark-brown ]  ;; Very steep terrain/rocky cliffs
+    ]
+
+    ; Set patches with no gradient data to grey
+    if plabel = ""
+    [
+      set pcolor grey
+    ]
+  ]
+
+  ; Remove patch labels (uncomment this to display gradient labels on view)
+  ask patches [
+    set plabel ""
+  ]
 
   reset-ticks
 end
 
+; GO
 to go
-  ask patch 0 0 [set pcolor green]
+  ask patch 0 0 [set pcolor red] ; test
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
 210
 10
-647
-448
+751
+552
 -1
 -1
 13.0
@@ -66,10 +215,10 @@ GRAPHICS-WINDOW
 1
 1
 1
--16
-16
--16
-16
+-20
+20
+-20
+20
 0
 0
 1
