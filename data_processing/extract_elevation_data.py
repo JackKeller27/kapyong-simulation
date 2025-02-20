@@ -5,7 +5,7 @@ from pykml import parser
 import requests
 
 # Resolution parameters
-HIGH_RES_SPACING = 0.00037 # 30 x 30 patches
+HIGH_RES_SPACING = 0.00033 # 30 x 30 patches
 LOW_RES_SPACING = 0.0005 # 20 x 20 patches
 
 # Map parameters

@@ -39,7 +39,7 @@ to setup
 
   ; Load elevation, gradient data
   ; Adjust resolution for map size
-  if max-pxcor = 20 and min-pycor = 20[
+  if max-pxcor = 20 and max-pycor = 20[
     set gradient-data csv:from-file "./data/20x20/hill_677_gradient_data.csv"
     set elevation-data csv:from-file "./data/20x20/hill_677_elevation_data.csv"
   ]
@@ -152,11 +152,11 @@ end
 GRAPHICS-WINDOW
 210
 10
-645
-446
+751
+552
 -1
 -1
-7.0
+13.0
 1
 10
 1
@@ -166,10 +166,10 @@ GRAPHICS-WINDOW
 1
 1
 1
--30
-30
--30
-30
+-20
+20
+-20
+20
 0
 0
 1
