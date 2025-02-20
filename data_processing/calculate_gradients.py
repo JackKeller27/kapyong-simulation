@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 
 # Load elevation data
-df = pd.read_csv("hill_677_elevation_grid.csv")
+df = pd.read_csv("data/hill_677_elevation_data.csv")
 
 # Sort by latitude (descending) and then longitude (ascending)
 df = df.sort_values(by=["latitude", "longitude"], ascending=[False, True])
@@ -49,6 +49,6 @@ for i in range(len(lat_vals)):
 gradient_df = pd.DataFrame(gradient_data, columns=["latitude", "longitude", "gradient"])
 
 # Export the data to CSV
-gradient_df.to_csv("hill_677_gradients_per_point.csv", index=False)
+gradient_df.to_csv("data/hill_677_gradient_data.csv", index=False)
 
-print("Gradient data saved to hill_677_gradients_per_point.csv")
+print("Gradient data saved to data/hill_677_gradient_data.csv")
