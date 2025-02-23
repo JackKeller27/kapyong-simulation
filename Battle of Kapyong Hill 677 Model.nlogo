@@ -10,6 +10,7 @@ globals [
   num-patches-y
   lat-min lat-max lon-min lon-max
   min-gradient max-gradient ; Track min/max gradients for scaling
+  min-elevation max-elevation
 
   lat-range lon-range
   patch-lat-dim patch-lon-dim
@@ -23,6 +24,7 @@ globals [
 ]
 
 ; SETUP
+patches-own [ gradient-value elevation-value]
 to setup
   clear-all
 
@@ -61,6 +63,8 @@ to setup
   ; Initialize min and max gradient values
   set min-gradient 999999
   set max-gradient -999999
+  set min-elevation 999999
+  set max-elevation -999999
 
   ; From hill_677_elevation_data:
   set lat-min 37.87275855821296
@@ -79,6 +83,7 @@ to setup
   ; Aggregate the gradient data to the patch level (compute an average gradient per patch)
   ; Convert gradient lat/lon coords -> patch coords
   ; WORKING
+
   ask patches [
     ; Get coordinates for the current patch
     let patch-x-coord pxcor
@@ -105,10 +110,37 @@ to setup
       ]
 
       ; Set the gradient value for the patch
+      set gradient-value avg-gradient
       set plabel avg-gradient
       set plabel-color black
     ]
+
+
+
+    let matching-elevations filter [ [entry] ->
+      (abs ((((item 0 entry - lat-min) / lat-range) * (max-pxcor - min-pxcor) + min-pxcor) - patch-x-coord) <= 0.5) and
+      (abs ((((item 1 entry - lon-min) / lon-range) * (max-pycor - min-pycor) + min-pycor) - patch-y-coord) <= 0.5)
+    ] elevation-data
+
+    ; Compute average elevation for matching elevations
+    if length matching-elevations > 0 [
+      let avg-elevation mean map [ [elevation-entry] -> item 2 elevation-entry ] matching-elevations
+
+      if avg-elevation < min-elevation [
+        set min-elevation avg-elevation
+      ]
+      if avg-elevation > max-elevation [
+        set max-elevation avg-elevation
+      ]
+
+      ; Set the gradient value for the patch
+
+      ; Store raw elevation in patch variable (not scaled)
+      set elevation-value avg-elevation
+    ]
   ]
+
+
 
   ; Now color patches based on the their gradients
   ; WORKING
@@ -118,15 +150,14 @@ to setup
       ; set pcolor scale-color brown plabel min-gradient max-gradient
 
       ; Green -> Brown scale
-      let gradient plabel
-      let norm-gradient (gradient - min-gradient) / (max-gradient - min-gradient) ; normalize gradient between [0, 1]
+      let norm-elevation (elevation-value - min-elevation) / (max-elevation - min-elevation) ; normalize gradient between [0, 1]
 
       ; Assign color based on thresholded ranges
-      if norm-gradient < 0.2 [ set pcolor light-green ]  ; Flat grass
-      if norm-gradient >= 0.2 and norm-gradient < 0.4 [ set pcolor dark-green ]  ; Light hills
-      if norm-gradient >= 0.4 and norm-gradient < 0.6 [ set pcolor brownish-green ]  ; Medium terrain
-      if norm-gradient >= 0.6 and norm-gradient < 0.8 [ set pcolor light-brown ]  ;; Steeper terrain
-      if norm-gradient >= 0.8 [ set pcolor dark-brown ]  ;; Very steep terrain/rocky cliffs
+      if norm-elevation < 0.2 [ set pcolor light-green ]  ; Flat grass
+      if norm-elevation >= 0.2 and norm-elevation < 0.4 [ set pcolor dark-green ]  ; Light hills
+      if norm-elevation >= 0.4 and norm-elevation < 0.6 [ set pcolor brownish-green ]  ; Medium terrain
+      if norm-elevation >= 0.6 and norm-elevation < 0.8 [ set pcolor light-brown ]  ;; Steeper terrain
+      if norm-elevation >= 0.8 [ set pcolor dark-brown ]  ;; Very steep terrain/rocky cliffs
     ]
 
     ; Set patches with no gradient data to grey
@@ -138,8 +169,14 @@ to setup
 
   ; Remove patch labels (uncomment this to display gradient labels on view)
   ask patches [
-    set plabel ""
-  ]
+  ;ifelse pxcor mod 3 = 0 and pycor mod 3 = 0 [  ;; Show label every 10 patches
+  ;  set plabel precision elevation-value 2
+  ;  set plabel-color black
+  ;] [
+    set plabel ""  ;; Hide label on other patches
+  ;]
+]
+
 
   reset-ticks
 end
