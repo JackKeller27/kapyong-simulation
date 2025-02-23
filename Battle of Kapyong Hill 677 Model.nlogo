@@ -184,8 +184,10 @@ end
 
 to spawn-hiker
   clear-turtles
-  create-turtles 1 [
-    setxy min-pxcor min-pycor  ;; Start at the bottom-left corner
+  create-turtles 10 [
+  setxy (min-pxcor + random (max-pxcor - min-pxcor))
+      (min-pycor + random (max-pycor - min-pycor))
+
     set shape "person"
     set color black
     pen-down
@@ -205,10 +207,12 @@ to go
     ;; Compute movement speed using Tobler’s function
     ;let alpha atan slope 1 ;; Convert slope to degrees
     let alpha gradient-value * 100
+    let speed-scale 10
 
-    set movement-speed 0.01036 * exp (-3.5 * abs tan(alpha) + 0.05)  ;; Tobler’s formula
-    let real-speed (movement-speed / 133.56) * 1.60934 * 3600
+    set movement-speed speed-scale * 0.147 * exp (-3.5 * abs tan(alpha) + 0.05)  ;; Tobler’s formula
+    let real-speed (movement-speed / 133.56) * 1.60934 * 3600 / speed-scale
     print (word "Current speed: " real-speed)
+
 
 
 
