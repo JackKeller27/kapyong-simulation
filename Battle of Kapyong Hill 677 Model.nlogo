@@ -1,4 +1,5 @@
 extensions [csv]
+turtles-own [ movement-speed ]
 
 globals [
   ; CSV data
@@ -181,9 +182,43 @@ to setup
   reset-ticks
 end
 
+to spawn-hiker
+  clear-turtles
+  create-turtles 1 [
+    setxy min-pxcor min-pycor  ;; Start at the bottom-left corner
+    set shape "person"
+    set color black
+    pen-down
+  ]
+end
+
 ; GO
 to go
-  ask patch 0 0 [set pcolor red] ; test
+  ask turtles [
+    let current-patch patch-here
+    let current-elevation [elevation-value] of current-patch
+
+    ;; Find the highest elevation patch
+    let target-patch max-one-of patches [elevation-value]
+
+
+    ;; Compute movement speed using Tobler’s function
+    ;let alpha atan slope 1 ;; Convert slope to degrees
+    let alpha gradient-value * 100
+
+    set movement-speed 0.01036 * exp (-3.5 * abs tan(alpha) + 0.05)  ;; Tobler’s formula
+    let real-speed (movement-speed / 133.56) * 1.60934 * 3600
+    print (word "Current speed: " real-speed)
+
+
+
+    ;; Move toward the highest elevation at the computed speed
+    face target-patch
+    fd movement-speed
+
+    ;; Stop if at the highest elevation
+    if patch-here = target-patch [ stop ]
+  ]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -246,6 +281,23 @@ NIL
 NIL
 NIL
 0
+
+BUTTON
+43
+153
+152
+186
+spawn-hiker
+spawn-hiker
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
 
 @#$#@#$#@
 ## WHAT IS IT?
