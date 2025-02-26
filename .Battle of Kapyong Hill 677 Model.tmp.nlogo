@@ -104,10 +104,10 @@ to setup
 
       ; Update min/max gradient values
       if avg-gradient < min-gradient [
-        set min-gradient avg-gradient *
+        set min-gradient avg-gradient
       ]
       if avg-gradient > max-gradient [
-        set max-gradient avg-gradient * hill_multiplier
+        set max-gradient avg-gradient
       ]
 
       ; Set the gradient value for the patch
@@ -128,10 +128,10 @@ to setup
       let avg-elevation mean map [ [elevation-entry] -> item 2 elevation-entry ] matching-elevations
 
       if avg-elevation < min-elevation [
-        set min-elevation avg-elevation * hill_multiplier
+        set min-elevation avg-elevation
       ]
       if avg-elevation > max-elevation [
-        set max-elevation avg-elevation * hill_multiplier
+        set max-elevation avg-elevation
       ]
 
       ; Set the gradient value for the patch
@@ -151,7 +151,7 @@ to setup
       ; set pcolor scale-color brown plabel min-gradient max-gradient
 
       ; Green -> Brown scale
-      let norm-elevation (elevation-value - min-elevation) / (max-elevation - min-elevation) * hill_multiplier ; normalize gradient between [0, 1]
+      let norm-elevation (elevation-value - min-elevation) / (max-elevation - min-elevation) ; normalize gradient between [0, 1]
 
       ; Assign color based on thresholded ranges
       if norm-elevation < 0.2 [ set pcolor light-green ]  ; Flat grass
@@ -200,30 +200,46 @@ to go
     let current-patch patch-here
     let current-elevation [elevation-value] of current-patch
 
-    ;; Find the highest elevation patch
-    let target-patch max-one-of patches [elevation-value]
+    ;; Step 1: Identify the global maximum elevation patch
+    let global-max-patch max-one-of patches [elevation-value]
 
+    ;; If the turtle has reached the global max, stop moving
+    if patch-here = global-max-patch [
 
-    ;; Compute movement speed using Tobler’s function
-    ;let alpha atan slope 1 ;; Convert slope to degrees
-    let alpha (gradient-value * 100)
+      stop
+    ]
+
+    ;; Step 2: Find neighboring patches
+    let candidate-patches neighbors
+
+    ;; Step 3: Pick the best move balancing:
+    ;; (1) Progress toward the global max (euclidean distance)
+    ;; (2) Movement speed (resistance)
+
     let speed-scale 10
 
-    set movement-speed speed-scale * 0.147 * exp (-3.5 * abs tan(alpha) + 0.05)  ;; Tobler’s formula
-    let real-speed (movement-speed / 133.56) * 1.60934 * 3600 / speed-scale
-    print (word "Current speed: " real-speed)
 
 
 
+    let best-patch max-one-of candidate-patches [
+      (speed-scale * 0.147 * exp (-3.5 * abs tan (gradient-value * 100) + 0.05))
+      + (-1 * distance global-max-patch)  ;; Negative distance to move toward max
+    ]
 
-    ;; Move toward the highest elevation at the computed speed
-    face target-patch
-    fd movement-speed
+    ;; Move toward the best patch if it's valid
+    if best-patch != nobody [
+      face best-patch
 
-    ;; Stop if at the highest elevation
-    if patch-here = target-patch [ stop ]
+      ;; Compute movement speed dynamically based on chosen patch
+      set movement-speed (speed-scale * 0.147 * exp (-3.5 * abs tan ([gradient-value] of best-patch * 100) + 0.05))  ;; Tobler’s formula
+      let real-speed (movement-speed / 133.56) * 1.60934 * 3600 / speed-scale
+      print (word "Current speed: " real-speed)
+      fd movement-speed
+    ]
   ]
 end
+
+
 @#$#@#$#@
 GRAPHICS-WINDOW
 210
@@ -312,7 +328,7 @@ hill_multiplier
 hill_multiplier
 0.01
 1
-1.0
+0.68
 0.01
 1
 NIL

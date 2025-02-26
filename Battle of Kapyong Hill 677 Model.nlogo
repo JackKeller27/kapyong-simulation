@@ -200,30 +200,45 @@ to go
     let current-patch patch-here
     let current-elevation [elevation-value] of current-patch
 
-    ;; Find the highest elevation patch
-    let target-patch max-one-of patches [elevation-value]
+    ;; Step 1: Identify the global maximum elevation patch
+    let global-max-patch max-one-of patches [elevation-value]
 
+    ;; If the turtle has reached the global max, stop moving
+    if patch-here = global-max-patch [
+      stop
+    ]
 
-    ;; Compute movement speed using Tobler’s function
-    ;let alpha atan slope 1 ;; Convert slope to degrees
-    let alpha (gradient-value * 100)
+    ;; Step 2: Find neighboring patches
+    let candidate-patches neighbors
+
+    ;; Step 3: Pick the best move balancing:
+    ;; (1) Progress toward the global max (euclidean distance)
+    ;; (2) Movement speed (resistance)
+
     let speed-scale 10
 
-    set movement-speed speed-scale * 0.147 * exp (-3.5 * abs tan(alpha) + 0.05)  ;; Tobler’s formula
-    let real-speed (movement-speed / 133.56) * 1.60934 * 3600 / speed-scale
-    print (word "Current speed: " real-speed)
 
 
 
+    let best-patch max-one-of candidate-patches [
+      (speed-scale * 0.147 * exp (-3.5 * abs tan (gradient-value * 100) + 0.05))
+      + (-1 * distance global-max-patch)  ;; Negative distance to move toward max
+    ]
 
-    ;; Move toward the highest elevation at the computed speed
-    face target-patch
-    fd movement-speed
+    ;; Move toward the best patch if it's valid
+    if best-patch != nobody [
+      face best-patch
 
-    ;; Stop if at the highest elevation
-    if patch-here = target-patch [ stop ]
+      ;; Compute movement speed dynamically based on chosen patch
+      set movement-speed (speed-scale * 0.147 * exp (-3.5 * abs tan ([gradient-value] of best-patch * 100) + 0.05))  ;; Tobler’s formula
+      let real-speed (movement-speed / 133.56) * 1.60934 * 3600 / speed-scale
+      print (word "Current speed: " real-speed)
+      fd movement-speed
+    ]
   ]
 end
+
+
 @#$#@#$#@
 GRAPHICS-WINDOW
 210
@@ -312,7 +327,7 @@ hill_multiplier
 hill_multiplier
 0.01
 1
-1.0
+0.68
 0.01
 1
 NIL
