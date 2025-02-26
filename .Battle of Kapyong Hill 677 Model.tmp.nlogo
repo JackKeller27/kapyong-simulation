@@ -104,14 +104,14 @@ to setup
 
       ; Update min/max gradient values
       if avg-gradient < min-gradient [
-        set min-gradient avg-gradient
+        set min-gradient avg-gradient *
       ]
       if avg-gradient > max-gradient [
-        set max-gradient avg-gradient
+        set max-gradient avg-gradient * hill_multiplier
       ]
 
       ; Set the gradient value for the patch
-      set gradient-value avg-gradient
+      set gradient-value avg-gradient * hill_multiplier
       set plabel avg-gradient
       set plabel-color black
     ]
@@ -128,16 +128,16 @@ to setup
       let avg-elevation mean map [ [elevation-entry] -> item 2 elevation-entry ] matching-elevations
 
       if avg-elevation < min-elevation [
-        set min-elevation avg-elevation
+        set min-elevation avg-elevation * hill_multiplier
       ]
       if avg-elevation > max-elevation [
-        set max-elevation avg-elevation
+        set max-elevation avg-elevation * hill_multiplier
       ]
 
       ; Set the gradient value for the patch
 
       ; Store raw elevation in patch variable (not scaled)
-      set elevation-value avg-elevation
+      set elevation-value avg-elevation * hill_multiplier
     ]
   ]
 
@@ -151,7 +151,7 @@ to setup
       ; set pcolor scale-color brown plabel min-gradient max-gradient
 
       ; Green -> Brown scale
-      let norm-elevation (elevation-value - min-elevation) / (max-elevation - min-elevation) ; normalize gradient between [0, 1]
+      let norm-elevation (elevation-value - min-elevation) / (max-elevation - min-elevation) * hill_multiplier ; normalize gradient between [0, 1]
 
       ; Assign color based on thresholded ranges
       if norm-elevation < 0.2 [ set pcolor light-green ]  ; Flat grass
@@ -206,10 +206,11 @@ to go
 
     ;; Compute movement speed using Tobler’s function
     ;let alpha atan slope 1 ;; Convert slope to degrees
-    let alpha gradient-value * 100
+    let alpha (gradient-value * 100)
+    let speed-scale 10
 
-    set movement-speed 1.47 * exp (-3.5 * abs tan(alpha) + 0.05)  ;; Tobler’s formula
-    let real-speed (movement-speed / 133.56) * 1.60934 * 3600 / 10
+    set movement-speed speed-scale * 0.147 * exp (-3.5 * abs tan(alpha) + 0.05)  ;; Tobler’s formula
+    let real-speed (movement-speed / 133.56) * 1.60934 * 3600 / speed-scale
     print (word "Current speed: " real-speed)
 
 
@@ -301,6 +302,21 @@ NIL
 NIL
 NIL
 1
+
+SLIDER
+32
+320
+204
+353
+hill_multiplier
+hill_multiplier
+0.01
+1
+1.0
+0.01
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?

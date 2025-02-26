@@ -111,7 +111,7 @@ to setup
       ]
 
       ; Set the gradient value for the patch
-      set gradient-value avg-gradient
+      set gradient-value avg-gradient * hill_multiplier
       set plabel avg-gradient
       set plabel-color black
     ]
@@ -137,7 +137,7 @@ to setup
       ; Set the gradient value for the patch
 
       ; Store raw elevation in patch variable (not scaled)
-      set elevation-value avg-elevation
+      set elevation-value avg-elevation * hill_multiplier
     ]
   ]
 
@@ -206,7 +206,7 @@ to go
 
     ;; Compute movement speed using Tobler’s function
     ;let alpha atan slope 1 ;; Convert slope to degrees
-    let alpha gradient-value * 100
+    let alpha (gradient-value * 100)
     let speed-scale 10
 
     set movement-speed speed-scale * 0.147 * exp (-3.5 * abs tan(alpha) + 0.05)  ;; Tobler’s formula
@@ -302,6 +302,21 @@ NIL
 NIL
 NIL
 1
+
+SLIDER
+32
+320
+204
+353
+hill_multiplier
+hill_multiplier
+0.01
+1
+1.0
+0.01
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
