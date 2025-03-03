@@ -30,8 +30,8 @@ globals [
 
   ; ROGERS - HIT CODE
   target-type          ; "point" or "area" target (set in the code or via a slider)
-  lethal-radius        ; effective lethal radius (e.g., 10)
-  sigma                ; standard deviation of shot errors (e.g., 20)
+  ;lethal-radius        ; effective lethal radius (e.g., 10)
+  ;sigma                ; standard deviation of shot errors (e.g., 20)
   target-area-radius   ; radius of the area target (only used if target-type = "area")
   shot-count           ; counter for the number of shots fired
 
@@ -46,11 +46,11 @@ to-report point-hit-probability [lethal-radius sigma]
   report 1 - exp ( - ((lethal-radius * lethal-radius) / (2 * sigma * sigma)) )
 end
 
-
 to-report area-hit-probability [lethal-radius sigma]
   ; Here we use the same formula as for point targets.
   report 1 - exp ( - ((lethal-radius * lethal-radius) / (2 * sigma * sigma)) )
 end
+
 
 
 ; SETUP
@@ -234,17 +234,17 @@ to setup
   reset-ticks
 end
 
-to spawn-hiker
-  clear-turtles
-  create-turtles 10 [
-  setxy (min-pxcor + random (max-pxcor - min-pxcor))
-      (min-pycor + random (max-pycor - min-pycor))
+;to spawn-hiker
+; clear-turtles
+;  create-turtles 10 [
+;  setxy (min-pxcor + random (max-pxcor - min-pxcor))
+;      (min-pycor + random (max-pycor - min-pycor))
 
-    set shape "person"
-    set color black
-    pen-down
-  ]
-end
+;    set shape "person"
+;    set color black
+;    pen-down
+;  ]
+;end
 
 
 ; GO
@@ -280,7 +280,7 @@ to go
           ]
         ]
       ]
-      else [
+      if count enemies-in-cone < 50 [
         ; POINT FIRING: Pick one enemy at random.
         let enemy one-of enemies-in-cone
         if enemy != nobody [
@@ -342,7 +342,6 @@ to go
     ]
   ]
 end
-
 @#$#@#$#@
 GRAPHICS-WINDOW
 210
