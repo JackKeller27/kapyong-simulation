@@ -205,7 +205,6 @@ to go
 
     ;; If the turtle has reached the global max, stop moving
     if patch-here = global-max-patch [
-
       stop
     ]
 
@@ -239,13 +238,12 @@ to go
   ]
 end
 
-
 @#$#@#$#@
 GRAPHICS-WINDOW
-210
-10
-751
-552
+253
+47
+794
+589
 -1
 -1
 13.0
@@ -269,10 +267,10 @@ ticks
 30.0
 
 BUTTON
-12
-27
-78
-60
+40
+62
+106
+95
 NIL
 setup
 NIL
@@ -286,10 +284,10 @@ NIL
 1
 
 BUTTON
-96
-27
-159
-60
+124
+62
+187
+95
 NIL
 go
 T
@@ -303,10 +301,10 @@ NIL
 0
 
 BUTTON
-43
-153
-152
-186
+71
+188
+180
+221
 spawn-hiker
 spawn-hiker
 NIL
@@ -320,19 +318,59 @@ NIL
 1
 
 SLIDER
-32
-320
-204
-353
+39
+114
+211
+147
 hill_multiplier
 hill_multiplier
 0.01
 1
-0.68
+1.0
 0.01
 1
 NIL
 HORIZONTAL
+
+TEXTBOX
+806
+301
+956
+331
+E\n
+24
+15.0
+1
+
+TEXTBOX
+515
+10
+665
+40
+N
+24
+15.0
+1
+
+TEXTBOX
+518
+594
+668
+624
+S
+24
+15.0
+1
+
+TEXTBOX
+222
+301
+372
+331
+W
+24
+15.0
+1
 
 @#$#@#$#@
 ## WHAT IS IT?
