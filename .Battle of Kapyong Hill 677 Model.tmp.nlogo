@@ -178,18 +178,61 @@ to setup
   ;]
 ]
 
-
   reset-ticks
 end
 
-to spawn-hiker
+to spawn-forces
   clear-turtles
-  create-turtles 10 [
-  setxy (min-pxcor + random (max-pxcor - min-pxcor))
-      (min-pycor + random (max-pycor - min-pycor))
+  let cluster-radius 8  ;; Controls spread of each cluster
+  let cluster-size 500  ;; Number of turtles per clump (adjust as needed)
 
+  let global-max-patch max-one-of patches [elevation-value]
+  let max-x [pxcor] of global-max-patch
+  let max-y [pycor] of global-max-patch
+
+  ;; Clump 1: Top Left
+  create-turtles cluster-size [
+    setxy (min-pxcor + 5 + random-float cluster-radius - cluster-radius / 2)
+          (max-pycor - 5 + random-float cluster-radius - cluster-radius / 2)
     set shape "person"
     set color black
+    pen-down
+  ]
+
+  ;; Clump 2: Top Middle
+  create-turtles cluster-size [
+    setxy (max-pxcor + 20 + random-float cluster-radius - cluster-radius / 2)
+          (max-pycor - 5 + random-float cluster-radius - cluster-radius / 2)
+    set shape "person"
+    set color black
+    pen-down
+  ]
+
+  ;; Clump 3: Bottom Left
+  create-turtles cluster-size [
+    setxy (min-pxcor + 5 + random-float cluster-radius - cluster-radius / 2)
+          (min-pycor + 5 + random-float cluster-radius - cluster-radius / 2)
+    set shape "person"
+    set color black
+    pen-down
+  ]
+
+  ;; Clump 4: Bottom Right
+  create-turtles cluster-size [
+    setxy (-pxcor - 5 + random-float cluster-radius - cluster-radius / 2)
+          (min-pycor + 5 + random-float cluster-radius - cluster-radius / 2)
+    set shape "person"
+    set color black
+    pen-down
+  ]
+  let cluster-radius1 4  ;; Controls spread of each cluster
+  let cluster-size1 100
+
+  create-turtles cluster-size1 [
+    setxy (max-x + random-float cluster-radius1 - cluster-radius1 / 2)
+          (max-y + random-float cluster-radius1 - cluster-radius1 / 2)
+    set shape "person"
+    set color white  ;; Color different for visibility (optional)
     pen-down
   ]
 end
@@ -232,7 +275,7 @@ to go
       ;; Compute movement speed dynamically based on chosen patch
       set movement-speed (speed-scale * 0.147 * exp (-3.5 * abs tan ([gradient-value] of best-patch * 100) + 0.05))  ;; Tobler’s formula
       let real-speed (movement-speed / 133.56) * 1.60934 * 3600 / speed-scale
-      print (word "Current speed: " real-speed)
+;      print (word "Current speed: " real-speed)
       fd movement-speed
     ]
   ]
@@ -301,12 +344,12 @@ NIL
 0
 
 BUTTON
-71
-188
-180
-221
-spawn-hiker
-spawn-hiker
+49
+168
+176
+201
+spawn-forces
+spawn-forces
 NIL
 1
 T
@@ -318,9 +361,9 @@ NIL
 1
 
 SLIDER
-39
+28
 114
-211
+200
 147
 hill_multiplier
 hill_multiplier
