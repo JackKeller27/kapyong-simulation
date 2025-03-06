@@ -178,18 +178,61 @@ to setup
   ;]
 ]
 
-
   reset-ticks
 end
 
-to spawn-hiker
+to spawn-forces
   clear-turtles
-  create-turtles 10 [
-  setxy (min-pxcor + random (max-pxcor - min-pxcor))
-      (min-pycor + random (max-pycor - min-pycor))
+  let cluster-radius 8  ;; Controls spread of each cluster
+  let cluster-size 500  ;; Number of turtles per clump (adjust as needed)
 
+  let global-max-patch max-one-of patches [elevation-value]
+  let max-x [pxcor] of global-max-patch
+  let max-y [pycor] of global-max-patch
+
+  ;; Clump 1: Top Left
+  create-turtles cluster-size [
+    setxy (min-pxcor + 5 + random-float cluster-radius - cluster-radius / 2)
+          (max-pycor - 5 + random-float cluster-radius - cluster-radius / 2)
     set shape "person"
     set color black
+    pen-down
+  ]
+
+  ;; Clump 2: Top Middle
+  create-turtles cluster-size [
+    setxy (max-pxcor + 20 + random-float cluster-radius - cluster-radius / 2)
+          (max-pycor - 5 + random-float cluster-radius - cluster-radius / 2)
+    set shape "person"
+    set color black
+    pen-down
+  ]
+
+  ;; Clump 3: Bottom Left
+  create-turtles cluster-size [
+    setxy (min-pxcor + 5 + random-float cluster-radius - cluster-radius / 2)
+          (min-pycor + 5 + random-float cluster-radius - cluster-radius / 2)
+    set shape "person"
+    set color black
+    pen-down
+  ]
+
+  ;; Clump 4: Bottom Right
+  create-turtles cluster-size [
+    setxy (-pxcor - 5 + random-float cluster-radius - cluster-radius / 2)
+          (min-pycor + 5 + random-float cluster-radius - cluster-radius / 2)
+    set shape "person"
+    set color black
+    pen-down
+  ]
+  let cluster-radius1 4  ;; Controls spread of each cluster
+  let cluster-size1 100
+
+  create-turtles cluster-size1 [
+    setxy (max-x + random-float cluster-radius1 - cluster-radius1 / 2)
+          (max-y + random-float cluster-radius1 - cluster-radius1 / 2)
+    set shape "person"
+    set color white  ;; Color different for visibility (optional)
     pen-down
   ]
 end
@@ -205,7 +248,6 @@ to go
 
     ;; If the turtle has reached the global max, stop moving
     if patch-here = global-max-patch [
-
       stop
     ]
 
@@ -233,19 +275,18 @@ to go
       ;; Compute movement speed dynamically based on chosen patch
       set movement-speed (speed-scale * 0.147 * exp (-3.5 * abs tan ([gradient-value] of best-patch * 100) + 0.05))  ;; Tobler’s formula
       let real-speed (movement-speed / 133.56) * 1.60934 * 3600 / speed-scale
-      print (word "Current speed: " real-speed)
+;      print (word "Current speed: " real-speed)
       fd movement-speed
     ]
   ]
 end
 
-
 @#$#@#$#@
 GRAPHICS-WINDOW
-210
-10
-751
-552
+253
+47
+794
+589
 -1
 -1
 13.0
@@ -269,10 +310,10 @@ ticks
 30.0
 
 BUTTON
-12
-27
-78
-60
+40
+62
+106
+95
 NIL
 setup
 NIL
@@ -286,10 +327,10 @@ NIL
 1
 
 BUTTON
-96
-27
-159
-60
+124
+62
+187
+95
 NIL
 go
 T
@@ -303,12 +344,12 @@ NIL
 0
 
 BUTTON
-43
-153
-152
-186
-spawn-hiker
-spawn-hiker
+49
+168
+176
+201
+spawn-forces
+spawn-forces
 NIL
 1
 T
@@ -320,19 +361,59 @@ NIL
 1
 
 SLIDER
-32
-320
-204
-353
+28
+114
+200
+147
 hill_multiplier
 hill_multiplier
 0.01
 1
-0.68
+1.0
 0.01
 1
 NIL
 HORIZONTAL
+
+TEXTBOX
+806
+301
+956
+331
+E\n
+24
+15.0
+1
+
+TEXTBOX
+515
+10
+665
+40
+N
+24
+15.0
+1
+
+TEXTBOX
+518
+594
+668
+624
+S
+24
+15.0
+1
+
+TEXTBOX
+222
+301
+372
+331
+W
+24
+15.0
+1
 
 @#$#@#$#@
 ## WHAT IS IT?
