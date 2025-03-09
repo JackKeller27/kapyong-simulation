@@ -40,16 +40,239 @@ to setup
   set light-brown 35
   set dark-brown 32
 
-  ; Load elevation, gradient data
+  ; Initialize min and max gradient values
+  set min-gradient 999999
+  set max-gradient -999999
+  set min-elevation 999999
+  set max-elevation -999999
+
+  ; From hill_677_elevation_data:
+  set lat-min 37.87275855821296
+  set lat-max 37.89375855821291
+  set lon-min 127.4644423642252
+  set lon-max 127.49544236422535
+
+  ; Calculate lat/lon range of model
+  set lat-range (lat-max - lat-min)
+  set lon-range (lon-max - lon-min)
+  ;  print "lat/lon range:"
+  ;  print lat-range
+  ;  print lon-range
+
+  ; Import patch data from pre-saved file
+  carefully [import-patch-data] [print "Environment must be 201x201 patches"]
+
+  ; OR uncomment below function calls to compute from scratch from raw elevation/gradient data:
+;  compute-patch-data-from-scratch
+;  export-patch-data
+  ;
+
+;  ; Load elevation, gradient data
+;  ; Adjust resolution for map size
+;  (ifelse max-pxcor = 20 and max-pycor = 20[
+;    set gradient-data csv:from-file "./data/20x20/hill_677_gradient_data.csv"
+;    set elevation-data csv:from-file "./data/20x20/hill_677_elevation_data.csv"
+;    ]
+;    max-pxcor = 30 and max-pycor = 30[
+;      set gradient-data csv:from-file "./data/30x30/hill_677_gradient_data.csv"
+;      set elevation-data csv:from-file "./data/30x30/hill_677_elevation_data.csv"
+;    ]
+;    ; else
+;    [
+;      set gradient-data csv:from-file "./data/30x30/hill_677_gradient_data.csv"
+;      set elevation-data csv:from-file "./data/30x30/hill_677_elevation_data.csv"
+;  ])
+;
+;
+;  ; Remove headers
+;  set gradient-data but-first gradient-data
+;  set elevation-data but-first elevation-data
+;
+;  ; Test data was loaded properly
+;  ; print "csv data"
+;  ;  print first gradient-data
+;  ;  print first elevation-data
+;
+;  ; Initialize min and max gradient values
+;  set min-gradient 999999
+;  set max-gradient -999999
+;  set min-elevation 999999
+;  set max-elevation -999999
+;
+;  ; From hill_677_elevation_data:
+;  set lat-min 37.87275855821296
+;  set lat-max 37.89375855821291
+;  set lon-min 127.4644423642252
+;  set lon-max 127.49544236422535
+;
+;  ; Calculate lat/lon range of model
+;  set lat-range (lat-max - lat-min)
+;  set lon-range (lon-max - lon-min)
+;  ;  print "lat/lon range:"
+;  ;  print lat-range
+;  ;  print lon-range
+;
+;
+;  ; Aggregate the gradient data to the patch level (compute an average gradient per patch)
+;  ; Convert gradient lat/lon coords -> patch coords
+;  ; WORKING
+;
+;  ask patches [
+;    ; Get coordinates for the current patch
+;    let patch-x-coord pxcor
+;    let patch-y-coord pycor
+;    let patch-threshold 5
+;
+;    ; Find matching gradients that are within 0.5 of the current patch coordinates
+;    ; Normalizes lat/lon coordinates for gradients to lat=[min-pxcor, max-pxcor] and lon=[min-pycor, max-pycor]
+;    let matching-gradients filter [ [entry] ->
+;      (abs ((((item 0 entry - lat-min) / lat-range) * (max-pxcor - min-pxcor) + min-pxcor) - patch-x-coord) <= patch-threshold) and
+;      (abs ((((item 1 entry - lon-min) / lon-range) * (max-pycor - min-pycor) + min-pycor) - patch-y-coord) <= patch-threshold)
+;    ] gradient-data
+;    ;    print (word "matching-gradients length: " (length matching-gradients))  ; Debugging
+;
+;    ; Compute average gradient for matching gradients
+;    if length matching-gradients > 0 [
+;      let avg-gradient mean map [ [gradient-entry] -> item 2 gradient-entry ] matching-gradients
+;
+;      ; Update min/max gradient values
+;      if avg-gradient < min-gradient [
+;        set min-gradient avg-gradient
+;      ]
+;      if avg-gradient > max-gradient [
+;        set max-gradient avg-gradient
+;      ]
+;
+;      ; Set the gradient value for the patch
+;      set gradient-value avg-gradient * hill_multiplier
+;      set plabel avg-gradient
+;      set plabel-color black
+;    ]
+;
+;
+;
+;    let matching-elevations filter [ [entry] ->
+;      (abs ((((item 0 entry - lat-min) / lat-range) * (max-pxcor - min-pxcor) + min-pxcor) - patch-x-coord) <= patch-threshold) and
+;      (abs ((((item 1 entry - lon-min) / lon-range) * (max-pycor - min-pycor) + min-pycor) - patch-y-coord) <= patch-threshold)
+;    ] elevation-data
+;
+;    ; Compute average elevation for matching elevations
+;    if length matching-elevations > 0 [
+;      let avg-elevation mean map [ [elevation-entry] -> item 2 elevation-entry ] matching-elevations
+;
+;      if avg-elevation < min-elevation [
+;        set min-elevation avg-elevation
+;      ]
+;      if avg-elevation > max-elevation [
+;        set max-elevation avg-elevation
+;      ]
+;
+;      ; Set the gradient value for the patch
+;
+;      ; Store raw elevation in patch variable (not scaled)
+;      set elevation-value avg-elevation * hill_multiplier
+;    ]
+;  ]
+
+
+  ; Now color patches based on the their gradients
+  ; WORKING
+  ask patches [
+    if elevation-value != 0 [
+      ; Brown scale
+      ; set pcolor scale-color brown plabel min-gradient max-gradient
+
+      ; Green -> Brown scale
+      let norm-elevation (elevation-value - min-elevation) / (max-elevation - min-elevation) ; normalize gradient between [0, 1]
+
+      ; Assign color based on thresholded ranges
+      if norm-elevation < 0.2 [ set pcolor light-green ]  ; Flat grass
+      if norm-elevation >= 0.2 and norm-elevation < 0.4 [ set pcolor dark-green ]  ; Light hills
+      if norm-elevation >= 0.4 and norm-elevation < 0.6 [ set pcolor brownish-green ]  ; Medium terrain
+      if norm-elevation >= 0.6 and norm-elevation < 0.8 [ set pcolor light-brown ]  ;; Steeper terrain
+      if norm-elevation >= 0.8 [ set pcolor dark-brown ]  ;; Very steep terrain/rocky cliffs
+    ]
+
+    ; Set patches with no gradient data to grey
+    if elevation-value = 0
+    [
+      set pcolor grey
+    ]
+  ]
+
+  ; Remove patch labels (uncomment this to display gradient labels on view)
+  ask patches [
+  ;ifelse pxcor mod 3 = 0 and pycor mod 3 = 0 [  ;; Show label every 10 patches
+  ;  set plabel precision elevation-value 2
+  ;  set plabel-color black
+  ;] [
+    set plabel ""  ;; Hide label on other patches
+  ;]
+]
+
+  reset-ticks
+end
+
+to import-patch-data
+  let filename (word "./data/patch_data_" (max-pxcor * 2 + 1) "x" (max-pycor * 2 + 1) ".csv")
+  file-open filename
+
+  ; Skip the header line
+  let first-line file-read-line
+
+  while [not file-at-end?] [
+    let line file-read-line
+    let values csv:from-row line
+
+    let px item 0 values
+    let py item 1 values
+    let elevation item 2 values
+    let gradient item 3 values
+;    print elevation
+;    print gradient
+
+     ; Update min/max elevation values
+      if elevation < min-elevation [
+        set min-elevation elevation
+      ]
+      if elevation > max-elevation [
+        set max-elevation elevation
+      ]
+
+      ; Update min/max gradient values
+      if gradient < min-gradient [
+        set min-gradient gr
+      ]
+      if avg-gradient > max-gradient [
+        set max-gradient avg-gradient
+      ]
+
+    ask patch px py [
+      set elevation-value (elevation * hill_multiplier)
+      set gradient-value (gradient * hill_multiplier)
+    ]
+  ]
+
+  file-close
+  print "Patch data imported successfully!"
+end
+
+to compute-patch-data-from-scratch
+    ; Load elevation, gradient data
   ; Adjust resolution for map size
-  if max-pxcor = 20 and max-pycor = 20[
+  (ifelse max-pxcor = 20 and max-pycor = 20[
     set gradient-data csv:from-file "./data/20x20/hill_677_gradient_data.csv"
     set elevation-data csv:from-file "./data/20x20/hill_677_elevation_data.csv"
-  ]
-  if max-pxcor = 30 and max-pycor = 30[
-    set gradient-data csv:from-file "./data/30x30/hill_677_gradient_data.csv"
-    set elevation-data csv:from-file "./data/30x30/hill_677_elevation_data.csv"
-  ]
+    ]
+    max-pxcor = 30 and max-pycor = 30[
+      set gradient-data csv:from-file "./data/30x30/hill_677_gradient_data.csv"
+      set elevation-data csv:from-file "./data/30x30/hill_677_elevation_data.csv"
+    ]
+    ; else
+    [
+      set gradient-data csv:from-file "./data/30x30/hill_677_gradient_data.csv"
+      set elevation-data csv:from-file "./data/30x30/hill_677_elevation_data.csv"
+  ])
 
 
   ; Remove headers
@@ -58,8 +281,8 @@ to setup
 
   ; Test data was loaded properly
   ; print "csv data"
-;  print first gradient-data
-;  print first elevation-data
+  ;  print first gradient-data
+  ;  print first elevation-data
 
   ; Initialize min and max gradient values
   set min-gradient 999999
@@ -76,9 +299,9 @@ to setup
   ; Calculate lat/lon range of model
   set lat-range (lat-max - lat-min)
   set lon-range (lon-max - lon-min)
-;  print "lat/lon range:"
-;  print lat-range
-;  print lon-range
+  ;  print "lat/lon range:"
+  ;  print lat-range
+  ;  print lon-range
 
 
   ; Aggregate the gradient data to the patch level (compute an average gradient per patch)
@@ -89,14 +312,15 @@ to setup
     ; Get coordinates for the current patch
     let patch-x-coord pxcor
     let patch-y-coord pycor
+    let patch-threshold 5
 
     ; Find matching gradients that are within 0.5 of the current patch coordinates
     ; Normalizes lat/lon coordinates for gradients to lat=[min-pxcor, max-pxcor] and lon=[min-pycor, max-pycor]
     let matching-gradients filter [ [entry] ->
-      (abs ((((item 0 entry - lat-min) / lat-range) * (max-pxcor - min-pxcor) + min-pxcor) - patch-x-coord) <= 0.5) and
-      (abs ((((item 1 entry - lon-min) / lon-range) * (max-pycor - min-pycor) + min-pycor) - patch-y-coord) <= 0.5)
+      (abs ((((item 0 entry - lat-min) / lat-range) * (max-pxcor - min-pxcor) + min-pxcor) - patch-x-coord) <= patch-threshold) and
+      (abs ((((item 1 entry - lon-min) / lon-range) * (max-pycor - min-pycor) + min-pycor) - patch-y-coord) <= patch-threshold)
     ] gradient-data
-;    print (word "matching-gradients length: " (length matching-gradients))  ; Debugging
+    ;    print (word "matching-gradients length: " (length matching-gradients))  ; Debugging
 
     ; Compute average gradient for matching gradients
     if length matching-gradients > 0 [
@@ -119,8 +343,8 @@ to setup
 
 
     let matching-elevations filter [ [entry] ->
-      (abs ((((item 0 entry - lat-min) / lat-range) * (max-pxcor - min-pxcor) + min-pxcor) - patch-x-coord) <= 0.5) and
-      (abs ((((item 1 entry - lon-min) / lon-range) * (max-pycor - min-pycor) + min-pycor) - patch-y-coord) <= 0.5)
+      (abs ((((item 0 entry - lat-min) / lat-range) * (max-pxcor - min-pxcor) + min-pxcor) - patch-x-coord) <= patch-threshold) and
+      (abs ((((item 1 entry - lon-min) / lon-range) * (max-pycor - min-pycor) + min-pycor) - patch-y-coord) <= patch-threshold)
     ] elevation-data
 
     ; Compute average elevation for matching elevations
@@ -140,46 +364,23 @@ to setup
       set elevation-value avg-elevation * hill_multiplier
     ]
   ]
+end
 
+to export-patch-data
+  let filename (word "./data/patch_data_" (max-pxcor * 2 + 1) "x" (max-pycor * 2 + 1) ".csv")
+  carefully [file-delete filename] [print "creating new file"]
+  file-open filename
 
-
-  ; Now color patches based on the their gradients
-  ; WORKING
+  file-print "pxcor, pycor, elevation, gradient"
   ask patches [
-    if plabel != "" [
-      ; Brown scale
-      ; set pcolor scale-color brown plabel min-gradient max-gradient
-
-      ; Green -> Brown scale
-      let norm-elevation (elevation-value - min-elevation) / (max-elevation - min-elevation) ; normalize gradient between [0, 1]
-
-      ; Assign color based on thresholded ranges
-      if norm-elevation < 0.2 [ set pcolor light-green ]  ; Flat grass
-      if norm-elevation >= 0.2 and norm-elevation < 0.4 [ set pcolor dark-green ]  ; Light hills
-      if norm-elevation >= 0.4 and norm-elevation < 0.6 [ set pcolor brownish-green ]  ; Medium terrain
-      if norm-elevation >= 0.6 and norm-elevation < 0.8 [ set pcolor light-brown ]  ;; Steeper terrain
-      if norm-elevation >= 0.8 [ set pcolor dark-brown ]  ;; Very steep terrain/rocky cliffs
-    ]
-
-    ; Set patches with no gradient data to grey
-    if plabel = ""
-    [
-      set pcolor grey
-    ]
+    let line (word pxcor "," pycor "," elevation-value "," gradient-value)
+;    print line
+    file-print line
   ]
 
-  ; Remove patch labels (uncomment this to display gradient labels on view)
-  ask patches [
-  ;ifelse pxcor mod 3 = 0 and pycor mod 3 = 0 [  ;; Show label every 10 patches
-  ;  set plabel precision elevation-value 2
-  ;  set plabel-color black
-  ;] [
-    set plabel ""  ;; Hide label on other patches
-  ;]
-]
-
-  reset-ticks
+  file-close
 end
+
 
 to spawn-forces
   clear-turtles
@@ -217,10 +418,10 @@ to spawn-forces
     pen-down
   ]
 
-  ;; Clump 4: Bottom Right
+  ;; Clump 4: Middle Left
   create-turtles cluster-size [
-    setxy (-pxcor - 5 + random-float cluster-radius - cluster-radius / 2)
-          (min-pycor + 5 + random-float cluster-radius - cluster-radius / 2)
+    setxy (min-pxcor + 5 + random-float cluster-radius - cluster-radius / 2)
+          (min-pycor + 20 + random-float cluster-radius - cluster-radius / 2)
     set shape "person"
     set color black
     pen-down
@@ -280,16 +481,15 @@ to go
     ]
   ]
 end
-
 @#$#@#$#@
 GRAPHICS-WINDOW
 253
 47
-794
-589
+763
+558
 -1
 -1
-13.0
+2.5
 1
 10
 1
@@ -299,10 +499,10 @@ GRAPHICS-WINDOW
 1
 1
 1
--20
-20
--20
-20
+-100
+100
+-100
+100
 0
 0
 1
