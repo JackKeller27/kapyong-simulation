@@ -296,6 +296,40 @@ to spawn-forces
     set color white  ;; Color different for visibility (optional)
     pen-down
   ]
+
+  ; CREATE UN WEAPONRY (SCALE QUANTITY BASED ON HILL STEEPNESS)
+  ; Logistic growth (scaling) parameters
+  let init_morts 3
+  let init_machguns 2
+  let max_factor 4
+  let max_morts max_factor * init_morts
+  let max_machguns max_factor * init_machguns
+  let k   ;; Growth rate parameter
+  let exp-part exp (- k * ((1 / hill_multiplier) - 1)) ; hill_multiplier is x-axis (want growth to increase as it decreases)
+
+  let num_morts max_morts / (1 + ((max_morts / init_morts) - 1) * exp-part)
+  let num_machguns max_machguns / (1 + ((max_machguns / init_machguns) - 1) * exp-part)
+
+  ; Machine guns (default 2)
+  create-turtles num_machguns [
+    setxy (max-x + random-float cluster-radius1 - cluster-radius1 / 2)
+          (max-y + random-float cluster-radius1 - cluster-radius1 / 2)
+    set shape "machine-gun"
+    set size 10
+    set color grey  ;; Color different for visibility (optional)
+    pen-down
+  ]
+
+  ; Mortars (default 3)
+  create-turtles num_morts [
+    setxy (max-x + random-float cluster-radius1 - cluster-radius1 / 2)
+          (max-y + random-float cluster-radius1 - cluster-radius1 / 2)
+    set shape "mortar"
+    set size 10
+    set color grey  ;; Color different for visibility (optional)
+    pen-down
+  ]
+
 end
 
 to color-patches-with-elevation
@@ -841,6 +875,30 @@ line half
 true
 0
 Line -7500403 true 150 0 150 150
+
+machine-gun
+true
+0
+Rectangle -7500403 true true 144 0 159 105
+Line -16777216 false 45 75 255 75
+Line -16777216 false 45 60 255 60
+Line -16777216 false 45 240 255 240
+Line -16777216 false 45 225 255 225
+Line -16777216 false 45 195 255 195
+Line -16777216 false 45 150 255 150
+Rectangle -16777216 false false 135 105 165 120
+Rectangle -1184463 false false 143 0 158 105
+Rectangle -7500403 true true 105 105 195 255
+Polygon -1184463 false false 105 105 105 255 195 255 195 105 150 105 105 105 105 105
+
+mortar
+true
+0
+Polygon -7500403 true true 165 0 165 15 180 150 195 165 195 180 180 195 165 225 135 225 120 195 105 180 105 165 120 150 135 15 135 0
+Line -16777216 false 120 150 180 150
+Line -16777216 false 120 195 180 195
+Line -16777216 false 165 15 135 15
+Polygon -2674135 false false 165 0 135 0 135 15 120 150 105 165 105 180 120 195 135 225 165 225 180 195 195 180 195 165 180 150 165 15
 
 pentagon
 false
