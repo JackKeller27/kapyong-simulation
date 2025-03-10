@@ -65,154 +65,72 @@ to setup
   ; OR uncomment below function calls to compute from scratch from raw elevation/gradient data:
 ;  compute-patch-data-from-scratch
 ;  export-patch-data
-  ;
 
-;  ; Load elevation, gradient data
-;  ; Adjust resolution for map size
-;  (ifelse max-pxcor = 20 and max-pycor = 20[
-;    set gradient-data csv:from-file "./data/20x20/hill_677_gradient_data.csv"
-;    set elevation-data csv:from-file "./data/20x20/hill_677_elevation_data.csv"
-;    ]
-;    max-pxcor = 30 and max-pycor = 30[
-;      set gradient-data csv:from-file "./data/30x30/hill_677_gradient_data.csv"
-;      set elevation-data csv:from-file "./data/30x30/hill_677_elevation_data.csv"
-;    ]
-;    ; else
-;    [
-;      set gradient-data csv:from-file "./data/30x30/hill_677_gradient_data.csv"
-;      set elevation-data csv:from-file "./data/30x30/hill_677_elevation_data.csv"
-;  ])
-;
-;
-;  ; Remove headers
-;  set gradient-data but-first gradient-data
-;  set elevation-data but-first elevation-data
-;
-;  ; Test data was loaded properly
-;  ; print "csv data"
-;  ;  print first gradient-data
-;  ;  print first elevation-data
-;
-;  ; Initialize min and max gradient values
-;  set min-gradient 999999
-;  set max-gradient -999999
-;  set min-elevation 999999
-;  set max-elevation -999999
-;
-;  ; From hill_677_elevation_data:
-;  set lat-min 37.87275855821296
-;  set lat-max 37.89375855821291
-;  set lon-min 127.4644423642252
-;  set lon-max 127.49544236422535
-;
-;  ; Calculate lat/lon range of model
-;  set lat-range (lat-max - lat-min)
-;  set lon-range (lon-max - lon-min)
-;  ;  print "lat/lon range:"
-;  ;  print lat-range
-;  ;  print lon-range
-;
-;
-;  ; Aggregate the gradient data to the patch level (compute an average gradient per patch)
-;  ; Convert gradient lat/lon coords -> patch coords
-;  ; WORKING
-;
+  ; Color patches based on elevation
+  color-patches-with-elevation
+  ; color-patches-with-gradient ; or with gradient instead
+
+  ; Spawn initial forces
+  spawn-forces
+
+;  ; Remove patch labels (uncomment this to display gradient labels on view)
 ;  ask patches [
-;    ; Get coordinates for the current patch
-;    let patch-x-coord pxcor
-;    let patch-y-coord pycor
-;    let patch-threshold 5
-;
-;    ; Find matching gradients that are within 0.5 of the current patch coordinates
-;    ; Normalizes lat/lon coordinates for gradients to lat=[min-pxcor, max-pxcor] and lon=[min-pycor, max-pycor]
-;    let matching-gradients filter [ [entry] ->
-;      (abs ((((item 0 entry - lat-min) / lat-range) * (max-pxcor - min-pxcor) + min-pxcor) - patch-x-coord) <= patch-threshold) and
-;      (abs ((((item 1 entry - lon-min) / lon-range) * (max-pycor - min-pycor) + min-pycor) - patch-y-coord) <= patch-threshold)
-;    ] gradient-data
-;    ;    print (word "matching-gradients length: " (length matching-gradients))  ; Debugging
-;
-;    ; Compute average gradient for matching gradients
-;    if length matching-gradients > 0 [
-;      let avg-gradient mean map [ [gradient-entry] -> item 2 gradient-entry ] matching-gradients
-;
-;      ; Update min/max gradient values
-;      if avg-gradient < min-gradient [
-;        set min-gradient avg-gradient
-;      ]
-;      if avg-gradient > max-gradient [
-;        set max-gradient avg-gradient
-;      ]
-;
-;      ; Set the gradient value for the patch
-;      set gradient-value avg-gradient * hill_multiplier
-;      set plabel avg-gradient
-;      set plabel-color black
-;    ]
-;
-;
-;
-;    let matching-elevations filter [ [entry] ->
-;      (abs ((((item 0 entry - lat-min) / lat-range) * (max-pxcor - min-pxcor) + min-pxcor) - patch-x-coord) <= patch-threshold) and
-;      (abs ((((item 1 entry - lon-min) / lon-range) * (max-pycor - min-pycor) + min-pycor) - patch-y-coord) <= patch-threshold)
-;    ] elevation-data
-;
-;    ; Compute average elevation for matching elevations
-;    if length matching-elevations > 0 [
-;      let avg-elevation mean map [ [elevation-entry] -> item 2 elevation-entry ] matching-elevations
-;
-;      if avg-elevation < min-elevation [
-;        set min-elevation avg-elevation
-;      ]
-;      if avg-elevation > max-elevation [
-;        set max-elevation avg-elevation
-;      ]
-;
-;      ; Set the gradient value for the patch
-;
-;      ; Store raw elevation in patch variable (not scaled)
-;      set elevation-value avg-elevation * hill_multiplier
-;    ]
-;  ]
-
-
-  ; Now color patches based on the their gradients
-  ; WORKING
-  ask patches [
-    if elevation-value != 0 [
-      ; Brown scale
-      ; set pcolor scale-color brown plabel min-gradient max-gradient
-
-      ; Green -> Brown scale
-      let norm-elevation (elevation-value - min-elevation) / (max-elevation - min-elevation) ; normalize gradient between [0, 1]
-
-      ; Assign color based on thresholded ranges
-      if norm-elevation < 0.2 [ set pcolor light-green ]  ; Flat grass
-      if norm-elevation >= 0.2 and norm-elevation < 0.4 [ set pcolor dark-green ]  ; Light hills
-      if norm-elevation >= 0.4 and norm-elevation < 0.6 [ set pcolor brownish-green ]  ; Medium terrain
-      if norm-elevation >= 0.6 and norm-elevation < 0.8 [ set pcolor light-brown ]  ;; Steeper terrain
-      if norm-elevation >= 0.8 [ set pcolor dark-brown ]  ;; Very steep terrain/rocky cliffs
-    ]
-
-    ; Set patches with no gradient data to grey
-    if elevation-value = 0
-    [
-      set pcolor grey
-    ]
-  ]
-
-  ; Remove patch labels (uncomment this to display gradient labels on view)
-  ask patches [
-  ;ifelse pxcor mod 3 = 0 and pycor mod 3 = 0 [  ;; Show label every 10 patches
-  ;  set plabel precision elevation-value 2
-  ;  set plabel-color black
-  ;] [
-    set plabel ""  ;; Hide label on other patches
-  ;]
-]
+;  ;ifelse pxcor mod 3 = 0 and pycor mod 3 = 0 [  ;; Show label every 10 patches
+;  ;  set plabel precision elevation-value 2
+;  ;  set plabel-color black
+;  ;] [
+;    set plabel ""  ;; Hide label on other patches
+;  ;]
+;]
 
   reset-ticks
 end
 
+; GO
+to go
+  ask turtles [
+    let current-patch patch-here
+    let current-elevation [elevation-value] of current-patch
+
+    ;; Step 1: Identify the global maximum elevation patch
+    let global-max-patch max-one-of patches [elevation-value]
+
+    ;; If the turtle has reached the global max, stop moving
+    if patch-here = global-max-patch [
+      stop
+    ]
+
+    ;; Step 2: Find neighboring patches
+    let candidate-patches neighbors
+
+    ;; Step 3: Pick the best move balancing:
+    ;; (1) Progress toward the global max (euclidean distance)
+    ;; (2) Movement speed (resistance)
+
+    let speed-scale 10
+
+
+
+
+    let best-patch max-one-of candidate-patches [
+      (speed-scale * 0.147 * exp (-3.5 * abs tan (gradient-value * 100) + 0.05))
+      + (-1 * distance global-max-patch)  ;; Negative distance to move toward max
+    ]
+
+    ;; Move toward the best patch if it's valid
+    if best-patch != nobody [
+      face best-patch
+
+      ;; Compute movement speed dynamically based on chosen patch
+      set movement-speed (speed-scale * 0.147 * exp (-3.5 * abs tan ([gradient-value] of best-patch * 100) + 0.05))  ;; Tobler’s formula
+      let real-speed (movement-speed / 133.56) * 1.60934 * 3600 / speed-scale
+;      print (word "Current speed: " real-speed)
+      fd movement-speed
+    ]
+  ]
+end
+
+; ENVIRONMENT SETUP/DATA PROCESSING
 to import-patch-data
   let filename (word "./data/patch_data_" (max-pxcor * 2 + 1) "x" (max-pycor * 2 + 1) ".csv")
   file-open filename
@@ -257,6 +175,174 @@ to import-patch-data
   print "Patch data imported successfully!"
 end
 
+to spawn-forces
+  clear-turtles
+
+  ; SPAWN CHINESE (PVA) FIRST
+  let cluster-radius 30  ;; Controls spread of each cluster
+  let cluster-size 100  ;; Number of turtles per clump (adjust as needed)
+  let offset (cluster-radius / 2)
+
+  let global-max-patch max-one-of patches [elevation-value]
+  let max-x [pxcor] of global-max-patch
+  let max-y [pycor] of global-max-patch
+
+  ;; Clump 1: Top Left
+  create-turtles cluster-size [
+    setxy (min-pxcor + offset + random-float cluster-radius - cluster-radius / 2)
+          (max-pycor - offset + random-float cluster-radius - cluster-radius / 2)
+    set shape "person"
+    set color black
+    pen-down
+  ]
+
+  ;; Clump 2: Top Middle
+  create-turtles cluster-size [
+    setxy (0 + random-float cluster-radius - cluster-radius / 2)
+          (max-pycor - offset + random-float cluster-radius - cluster-radius / 2)
+    set shape "person"
+    set color black
+    pen-down
+  ]
+
+  ;; Clump 3: Bottom Left
+  create-turtles cluster-size [
+    setxy (min-pxcor + offset + random-float cluster-radius - cluster-radius / 2)
+          (min-pycor + offset + random-float cluster-radius - cluster-radius / 2)
+    set shape "person"
+    set color black
+    pen-down
+  ]
+
+  ;; Clump 4: Middle Left
+  create-turtles cluster-size [
+    setxy (min-pxcor + offset + random-float cluster-radius - cluster-radius / 2)
+          (0 + random-float cluster-radius - cluster-radius / 2)
+    set shape "person"
+    set color black
+    pen-down
+  ]
+
+  ;; Clump 5: Between Top Left and Top Middle
+  create-turtles cluster-size [
+    setxy ((min-pxcor + offset) / 2 + random-float cluster-radius - cluster-radius / 2)
+    (max-pycor - offset + random-float cluster-radius - cluster-radius / 2)
+    set shape "person"
+    set color black
+    pen-down
+  ]
+
+  ;; Clump 6: Between Middle Left and Top Middle
+  create-turtles cluster-size [
+    setxy ((min-pxcor + offset) / 2 + random-float cluster-radius - cluster-radius / 2)
+    ((max-pycor - offset) / 2 + random-float cluster-radius - cluster-radius / 2)
+    set shape "person"
+    set color black
+    pen-down
+  ]
+
+  ;; Clump 7: Under Top Left
+  create-turtles cluster-size [
+    setxy (min-pxcor + offset + random-float cluster-radius - cluster-radius / 2)
+    ((max-pycor - offset) / 2 + random-float cluster-radius - cluster-radius / 2)
+    set shape "person"
+    set color black
+    pen-down
+  ]
+
+  ;; Clump 8: Between Bottom Left and Middle Left
+  create-turtles cluster-size [
+    setxy ((min-pxcor + offset) / 2 + random-float cluster-radius - cluster-radius / 2)
+    ((min-pycor + offset) / 2 + random-float cluster-radius - cluster-radius / 2)
+    set shape "person"
+    set color black
+    pen-down
+  ]
+
+  ;; Clump 9: Between Middle Left and Bottom Middle
+  create-turtles cluster-size [
+    setxy (min-pxcor + offset + random-float cluster-radius - cluster-radius / 2)
+    ((min-pycor + offset) / 2 + random-float cluster-radius - cluster-radius / 2)
+    set shape "person"
+    set color black
+    pen-down
+  ]
+
+  ;; Clump 10: Between Bottom Left and Bottom Middle
+  create-turtles cluster-size [
+    setxy ((min-pxcor + offset) / 2 + random-float cluster-radius - cluster-radius / 2)
+    (min-pycor + offset + random-float cluster-radius - cluster-radius / 2)
+    set shape "person"
+    set color black
+    pen-down
+  ]
+
+
+  ; SPAWN UN FORCES
+  let cluster-radius1 30  ;; Controls spread of each cluster
+  let cluster-size1 100
+
+  create-turtles cluster-size1 [
+    setxy (max-x + random-float cluster-radius1 - cluster-radius1 / 2)
+          (max-y + random-float cluster-radius1 - cluster-radius1 / 2)
+    set shape "person"
+    set color white  ;; Color different for visibility (optional)
+    pen-down
+  ]
+end
+
+to color-patches-with-elevation
+  ; Color patches based on the their elevation value
+  ask patches [
+    if elevation-value != 0 [
+      ; Brown scale
+      ; set pcolor scale-color brown plabel min-gradient max-gradient
+
+      ; Green -> Brown scale
+      let norm-elevation (elevation-value - min-elevation) / (max-elevation - min-elevation) ; normalize elevation between [0, 1]
+
+      ; Assign color based on thresholded ranges
+      if norm-elevation < 0.2 [ set pcolor light-green ]  ; Flat grass
+      if norm-elevation >= 0.2 and norm-elevation < 0.4 [ set pcolor dark-green ]  ; Light hills
+      if norm-elevation >= 0.4 and norm-elevation < 0.6 [ set pcolor brownish-green ]  ; Medium terrain
+      if norm-elevation >= 0.6 and norm-elevation < 0.8 [ set pcolor light-brown ]  ;; Steeper terrain
+      if norm-elevation >= 0.8 [ set pcolor dark-brown ]  ;; Very steep terrain/rocky cliffs
+    ]
+
+    ; Set patches with no elevation data to grey
+    if elevation-value = 0
+    [
+      set pcolor grey
+    ]
+  ]
+end
+
+to color-patches-with-gradient
+  ; Color patches based on the their gradient value
+  ask patches [
+    if gradient-value != 0 [
+      ; Brown scale
+      ; set pcolor scale-color brown plabel min-gradient max-gradient
+
+      ; Green -> Brown scale
+      let norm-gradient (gradient-value - min-gradient) / (max-gradient - min-gradient) ; normalize gradient between [0, 1]
+
+      ; Assign color based on thresholded ranges
+      if norm-gradient < 0.2 [ set pcolor light-green ]  ; Flat grass
+      if norm-gradient >= 0.2 and norm-gradient < 0.4 [ set pcolor dark-green ]  ; Light hills
+      if norm-gradient >= 0.4 and norm-gradient < 0.6 [ set pcolor brownish-green ]  ; Medium terrain
+      if norm-gradient >= 0.6 and norm-gradient < 0.8 [ set pcolor light-brown ]  ;; Steeper terrain
+      if norm-gradient >= 0.8 [ set pcolor dark-brown ]  ;; Very steep terrain/rocky cliffs
+    ]
+
+    ; Set patches with no elevation data to grey
+    if gradient-value = 0
+    [
+      set pcolor grey
+    ]
+  ]
+end
+
 to compute-patch-data-from-scratch
     ; Load elevation, gradient data
   ; Adjust resolution for map size
@@ -283,26 +369,6 @@ to compute-patch-data-from-scratch
   ; print "csv data"
   ;  print first gradient-data
   ;  print first elevation-data
-
-  ; Initialize min and max gradient values
-  set min-gradient 999999
-  set max-gradient -999999
-  set min-elevation 999999
-  set max-elevation -999999
-
-  ; From hill_677_elevation_data:
-  set lat-min 37.87275855821296
-  set lat-max 37.89375855821291
-  set lon-min 127.4644423642252
-  set lon-max 127.49544236422535
-
-  ; Calculate lat/lon range of model
-  set lat-range (lat-max - lat-min)
-  set lon-range (lon-max - lon-min)
-  ;  print "lat/lon range:"
-  ;  print lat-range
-  ;  print lon-range
-
 
   ; Aggregate the gradient data to the patch level (compute an average gradient per patch)
   ; Convert gradient lat/lon coords -> patch coords
@@ -364,6 +430,9 @@ to compute-patch-data-from-scratch
       set elevation-value avg-elevation * hill_multiplier
     ]
   ]
+
+  ; Export data to file
+  export-patch-data
 end
 
 to export-patch-data
@@ -379,107 +448,6 @@ to export-patch-data
   ]
 
   file-close
-end
-
-
-to spawn-forces
-  clear-turtles
-  let cluster-radius 8  ;; Controls spread of each cluster
-  let cluster-size 500  ;; Number of turtles per clump (adjust as needed)
-
-  let global-max-patch max-one-of patches [elevation-value]
-  let max-x [pxcor] of global-max-patch
-  let max-y [pycor] of global-max-patch
-
-  ;; Clump 1: Top Left
-  create-turtles cluster-size [
-    setxy (min-pxcor + 5 + random-float cluster-radius - cluster-radius / 2)
-          (max-pycor - 5 + random-float cluster-radius - cluster-radius / 2)
-    set shape "person"
-    set color black
-    pen-down
-  ]
-
-  ;; Clump 2: Top Middle
-  create-turtles cluster-size [
-    setxy (max-pxcor + 20 + random-float cluster-radius - cluster-radius / 2)
-          (max-pycor - 5 + random-float cluster-radius - cluster-radius / 2)
-    set shape "person"
-    set color black
-    pen-down
-  ]
-
-  ;; Clump 3: Bottom Left
-  create-turtles cluster-size [
-    setxy (min-pxcor + 5 + random-float cluster-radius - cluster-radius / 2)
-          (min-pycor + 5 + random-float cluster-radius - cluster-radius / 2)
-    set shape "person"
-    set color black
-    pen-down
-  ]
-
-  ;; Clump 4: Middle Left
-  create-turtles cluster-size [
-    setxy (min-pxcor + 5 + random-float cluster-radius - cluster-radius / 2)
-          (min-pycor + 20 + random-float cluster-radius - cluster-radius / 2)
-    set shape "person"
-    set color black
-    pen-down
-  ]
-  let cluster-radius1 4  ;; Controls spread of each cluster
-  let cluster-size1 100
-
-  create-turtles cluster-size1 [
-    setxy (max-x + random-float cluster-radius1 - cluster-radius1 / 2)
-          (max-y + random-float cluster-radius1 - cluster-radius1 / 2)
-    set shape "person"
-    set color white  ;; Color different for visibility (optional)
-    pen-down
-  ]
-end
-
-; GO
-to go
-  ask turtles [
-    let current-patch patch-here
-    let current-elevation [elevation-value] of current-patch
-
-    ;; Step 1: Identify the global maximum elevation patch
-    let global-max-patch max-one-of patches [elevation-value]
-
-    ;; If the turtle has reached the global max, stop moving
-    if patch-here = global-max-patch [
-      stop
-    ]
-
-    ;; Step 2: Find neighboring patches
-    let candidate-patches neighbors
-
-    ;; Step 3: Pick the best move balancing:
-    ;; (1) Progress toward the global max (euclidean distance)
-    ;; (2) Movement speed (resistance)
-
-    let speed-scale 10
-
-
-
-
-    let best-patch max-one-of candidate-patches [
-      (speed-scale * 0.147 * exp (-3.5 * abs tan (gradient-value * 100) + 0.05))
-      + (-1 * distance global-max-patch)  ;; Negative distance to move toward max
-    ]
-
-    ;; Move toward the best patch if it's valid
-    if best-patch != nobody [
-      face best-patch
-
-      ;; Compute movement speed dynamically based on chosen patch
-      set movement-speed (speed-scale * 0.147 * exp (-3.5 * abs tan ([gradient-value] of best-patch * 100) + 0.05))  ;; Tobler’s formula
-      let real-speed (movement-speed / 133.56) * 1.60934 * 3600 / speed-scale
-;      print (word "Current speed: " real-speed)
-      fd movement-speed
-    ]
-  ]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -568,7 +536,7 @@ SLIDER
 hill_multiplier
 hill_multiplier
 0.01
-1
+1.25
 1.0
 0.01
 1
@@ -576,8 +544,8 @@ NIL
 HORIZONTAL
 
 TEXTBOX
-806
-301
+775
+288
 956
 331
 E\n
@@ -586,7 +554,7 @@ E\n
 1
 
 TEXTBOX
-515
+499
 10
 665
 40
@@ -596,8 +564,8 @@ N
 1
 
 TEXTBOX
-518
-594
+502
+568
 668
 624
 S
@@ -606,10 +574,10 @@ S
 1
 
 TEXTBOX
-222
-301
+217
+288
 372
-331
+337
 W
 24
 15.0
