@@ -6,6 +6,7 @@ globals [
   gradient-data
   elevation-data
 
+  meters-per-patch
   ; Patch data
   num-patches-x
   num-patches-y
@@ -39,6 +40,8 @@ to setup
   set brownish-green 36
   set light-brown 35
   set dark-brown 32
+
+  set meters-per-patch 9.03
 
   ; Initialize min and max gradient values
   set min-gradient 999999
@@ -88,7 +91,11 @@ end
 
 ; GO
 to go
-  ask turtles [
+  ask turtles with [color = white] [
+    shoot-at-black-agents
+  ]
+  ask turtles with [color = black][
+    black-shoots-at-white
     let current-patch patch-here
     let current-elevation [elevation-value] of current-patch
 
@@ -180,7 +187,7 @@ to spawn-forces
 
   ; SPAWN CHINESE (PVA) FIRST
   let cluster-radius 30  ;; Controls spread of each cluster
-  let cluster-size 100  ;; Number of turtles per clump (adjust as needed)
+  let cluster-size 10  ;; Number of turtles per clump (adjust as needed)
   let offset (cluster-radius / 2)
 
   let global-max-patch max-one-of patches [elevation-value]
@@ -280,7 +287,7 @@ to spawn-forces
 
   ; SPAWN UN FORCES
   let cluster-radius1 30  ;; Controls spread of each cluster
-  let cluster-size1 100
+  let cluster-size1 10
 
   create-turtles cluster-size1 [
     setxy (max-x + random-float cluster-radius1 - cluster-radius1 / 2)
@@ -449,6 +456,54 @@ to export-patch-data
 
   file-close
 end
+
+to-report compute-hit-probability [shooter target bullet_effectiveness bullet_range]
+  let dist [distance target] of shooter
+  let shooter-elevation [elevation-value] of shooter
+  let target-elevation [elevation-value] of target
+  let grad (target-elevation - shooter-elevation) / (dist * meters-per-patch)
+
+  let theta grad
+  let s (tanh theta)
+
+  let r-theta (4 - ((theta * 100) / 15)) ^ 2
+  let R bullet_effectiveness
+  let D bullet_range
+  let hit-probability (exp (-1 * R / r-theta)) * exp ((-1 * dist) / D)
+  report hit-probability
+end
+
+to-report tanh [x]
+  set x x * 100 * pi / 180
+  report (exp x - exp (-1 * x)) / (exp x + exp (-1 * x))
+end
+
+to shoot-at-black-agents
+  let shooting-range 100  ;; Maximum shooting distance
+  let target min-one-of turtles with [color = black] [distance self]
+
+  if target != nobody and [distance target] of self <= shooting-range [
+    let prob compute-hit-probability self target 3 50
+    if random-float 1 < prob and prob > 0.2 [
+      print "black died"
+      ask target [ die ]  ;; Kill black agent if hit
+    ]
+  ]
+end
+
+to black-shoots-at-white
+  let shooting-range 100  ;; Maximum shooting distance
+  let target min-one-of turtles with [color = white] [distance self]
+
+  if target != nobody and [distance target] of self <= shooting-range [
+    let prob compute-hit-probability self target 1 20
+
+    if random-float 1 < prob and prob > 0.2 [
+      print "white died"
+      ask target [ die ]  ;; Kill white agent if hit
+    ]
+  ]
+end
 @#$#@#$#@
 GRAPHICS-WINDOW
 253
@@ -537,7 +592,7 @@ hill_multiplier
 hill_multiplier
 0.01
 1.25
-1.0
+1.25
 0.01
 1
 NIL
