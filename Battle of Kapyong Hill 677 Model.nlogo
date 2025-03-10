@@ -90,54 +90,105 @@ to setup
   reset-ticks
 end
 
-; GO
+
 to go
   ask turtles with [color = white] [
     shoot-at-black-agents
   ]
   ask turtles with [color = black][
     black-shoots-at-white
-
     let current-patch patch-here
     let current-elevation [elevation-value] of current-patch
+    let current-target patch-here
 
     ;; Step 1: Identify the global maximum elevation patch
-    let global-max-patch max-one-of patches [elevation-value]
-
-    ;; If the turtle has reached the global max, stop moving
-    if patch-here = global-max-patch [
-      stop
+    let closest-white-turtle min-one-of turtles with [color = white] [distance myself]
+    let target-patch 0
+    ifelse closest-white-turtle = nobody [
+      set target-patch max-one-of patches [elevation-value]
+    ] [
+      set target-patch [patch-here] of closest-white-turtle
     ]
 
-    ;; Step 2: Find neighboring patches
-    let candidate-patches neighbors
-
-    ;; Step 3: Pick the best move balancing:
-    ;; (1) Progress toward the global max (euclidean distance)
-    ;; (2) Movement speed (resistance)
-
-    let speed-scale 10
+    if target-patch != nobody [
 
 
+      if patch-here = closest-white-turtle [
+        stop
+      ]
+
+      ;; Step 2: Find neighboring patches
+      let candidate-patches neighbors
+
+      let speed-scale 10
 
 
-    let best-patch max-one-of candidate-patches [
-      (speed-scale * 0.147 * exp (-3.5 * abs tan (gradient-value * 100) + 0.05))
-      + (-1 * distance global-max-patch)  ;; Negative distance to move toward max
-    ]
+
+      let min-cost 999999999
+      let best-patch nobody
+
+      foreach (sort neighbors) [neighbor ->
+        if ([pxcor] of neighbor > min-pxcor and [pxcor] of neighbor < max-pxcor and
+          [pycor] of neighbor > min-pycor and [pycor] of neighbor < max-pycor) [
+
+          ;; Calculate terrain movement cost using Tobler’s cost function
+          let terrain-cost -1 * (6 * exp (-3.5 * abs tan ([gradient-value] of neighbor * 100)))
+
+          ;; Compute average elevation of neighboring patches
+          let avg-neighbor-elevation mean [elevation-value] of neighbors
+
+          ;; Calculate elevation difference from the average
+          let elevation-diff [elevation-value] of neighbor - avg-neighbor-elevation
+          set elevation-diff abs(elevation-diff)
+
+
+          ;; Apply ridge penalty if the elevation difference is significant
+          let ridge-penalty max (list 0 (30 * ([1 - gradient-value] of neighbor ^ 2)))
+
+
+
+          let dist-to-target 2 * sqrt (([pxcor] of neighbor - [pxcor] of target-patch) ^ 2 +
+                               ([pycor] of neighbor - [pycor] of target-patch) ^ 2)
+
+          let elevation-diff-to-target [elevation-value] of target-patch - [elevation-value] of neighbor
+          let elevation-bonus ifelse-value (elevation-diff-to-target > 0) [-1 * elevation-diff-to-target * 2] [0]  ;; Reward uphill movement
+          set elevation-bonus 0
+          ;; Compute total movement cost
+          let total-cost terrain-cost + ridge-penalty + dist-to-target + elevation-bonus
+
+
+          ;; Update best patch if this neighbor has a lower cost
+          if (total-cost < min-cost) [
+            set min-cost total-cost
+            set best-patch neighbor
+          ]
+        ]
+      ]
+
+
+
+
+
+
+    ;; let best-patch min-one-of candidate-patches [
+    ;;  (speed-scale * 0.147 * exp (-3.5 * abs tan (gradient-value * 100) + 0.05))
+    ;;  + (-1 * distance global-max-patch)  ;; Negative distance to move toward max
+    ;; ]
 
     ;; Move toward the best patch if it's valid
-    if best-patch != nobody [
-      face best-patch
+      if best-patch != nobody [
+        face best-patch
 
-      ;; Compute movement speed dynamically based on chosen patch
-      set movement-speed (speed-scale * 0.147 * exp (-3.5 * abs tan ([gradient-value] of best-patch * 100) + 0.05))  ;; Tobler’s formula
-      let real-speed (movement-speed / 133.56) * 1.60934 * 3600 / speed-scale
-;      print (word "Current speed: " real-speed)
-      fd movement-speed
+        ;; Compute movement speed dynamically based on chosen patch
+        set movement-speed (speed-scale * 0.147 * exp (-3.5 * abs tan ([gradient-value] of best-patch * 100) + 0.05))  ;; Tobler’s formula
+        let real-speed (movement-speed / 133.56) * 1.60934 * 3600 / speed-scale
+        ;; print (word "Current speed: " real-speed)
+        fd movement-speed
+      ]
     ]
   ]
 end
+
 
 ; ENVIRONMENT SETUP/DATA PROCESSING
 to import-patch-data
@@ -189,7 +240,7 @@ to spawn-forces
 
   ; SPAWN CHINESE (PVA) FIRST
   let cluster-radius-pva 30 ;; Controls spread of each cluster
-  let cluster-size-pva 182  ;; # per clump (2,002 total)
+  let cluster-size-pva 18  ;; # per clump (2,002 total)
   let offset (cluster-radius-pva / 2)
 
   let global-max-patch max-one-of patches [elevation-value]
@@ -298,7 +349,7 @@ to spawn-forces
 
   ; SPAWN UN FORCES
   let cluster-radius-un 30 ;; Controls spread of each cluster
-  let cluster-size-un 100
+  let cluster-size-un 10
 
   create-turtles cluster-size-un [
     setxy (max-x + random-float cluster-radius-un - cluster-radius-un / 2)
@@ -529,7 +580,7 @@ to shoot-at-black-agents
   let target min-one-of turtles with [color = black] [distance self]
 
   if target != nobody and [distance target] of self <= shooting-range [
-    let prob compute-hit-probability self target 3 50
+    let prob compute-hit-probability self target 3 25
     if random-float 1 < prob and prob > 0.2 [
       print "black died"
       ask target [ die ]  ;; Kill black agent if hit
@@ -542,7 +593,7 @@ to black-shoots-at-white
   let target min-one-of turtles with [color = white] [distance self]
 
   if target != nobody and [distance target] of self <= shooting-range [
-    let prob compute-hit-probability self target 1 20
+    let prob compute-hit-probability self target 1 10
 
     if random-float 1 < prob and prob > 0.2 [
       print "white died"
@@ -638,7 +689,7 @@ hill_multiplier
 hill_multiplier
 0.01
 1.25
-0.25
+1.25
 0.01
 1
 NIL
