@@ -6,7 +6,6 @@ globals [
   gradient-data
   elevation-data
 
-  meters-per-patch
   ; Patch data
   num-patches-x
   num-patches-y
@@ -41,7 +40,6 @@ to setup
   set light-brown 35
   set dark-brown 32
 
-  set meters-per-patch 9.03
 
   ; Initialize min and max gradient values
   set min-gradient 999999
@@ -96,6 +94,7 @@ to go
   ]
   ask turtles with [color = black][
     black-shoots-at-white
+
     let current-patch patch-here
     let current-elevation [elevation-value] of current-patch
 
@@ -186,8 +185,8 @@ to spawn-forces
   clear-turtles
 
   ; SPAWN CHINESE (PVA) FIRST
-  let cluster-radius 30  ;; Controls spread of each cluster
-  let cluster-size 10  ;; Number of turtles per clump (adjust as needed)
+  let cluster-radius 30 ;; Controls spread of each cluster
+  let cluster-size 100  ;; Number of turtles per clump (adjust as needed)
   let offset (cluster-radius / 2)
 
   let global-max-patch max-one-of patches [elevation-value]
@@ -286,8 +285,8 @@ to spawn-forces
 
 
   ; SPAWN UN FORCES
-  let cluster-radius1 30  ;; Controls spread of each cluster
-  let cluster-size1 10
+  let cluster-radius1 30 ;; Controls spread of each cluster
+  let cluster-size1 100
 
   create-turtles cluster-size1 [
     setxy (max-x + random-float cluster-radius1 - cluster-radius1 / 2)
@@ -304,7 +303,7 @@ to spawn-forces
   let max_factor 4
   let max_morts max_factor * init_morts
   let max_machguns max_factor * init_machguns
-  let k   ;; Growth rate parameter
+  let k 2.5  ;; Growth rate parameter
   let exp-part exp (- k * ((1 / hill_multiplier) - 1)) ; hill_multiplier is x-axis (want growth to increase as it decreases)
 
   let num_morts max_morts / (1 + ((max_morts / init_morts) - 1) * exp-part)
@@ -491,6 +490,7 @@ to export-patch-data
   file-close
 end
 
+; SHOOTING
 to-report compute-hit-probability [shooter target bullet_effectiveness bullet_range]
   let dist [distance target] of shooter
   let shooter-elevation [elevation-value] of shooter
@@ -533,7 +533,6 @@ to black-shoots-at-white
     let prob compute-hit-probability self target 1 20
 
     if random-float 1 < prob and prob > 0.2 [
-
       print "white died"
       ask target [ die ]  ;; Kill white agent if hit
     ]
@@ -627,7 +626,7 @@ hill_multiplier
 hill_multiplier
 0.01
 1.25
-1.25
+1.0
 0.01
 1
 NIL

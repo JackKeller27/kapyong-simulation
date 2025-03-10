@@ -6,8 +6,8 @@ globals [
   gradient-data
   elevation-data
 
-  meters-per-patch
   ; Patch data
+   meters-per-patch
   num-patches-x
   num-patches-y
   lat-min lat-max lon-min lon-max
@@ -41,6 +41,7 @@ to setup
   set light-brown 35
   set dark-brown 32
 
+  ; Meters per patch
   set meters-per-patch 9.03
 
   ; Initialize min and max gradient values
@@ -96,6 +97,7 @@ to go
   ]
   ask turtles with [color = black][
     black-shoots-at-white
+
     let current-patch patch-here
     let current-elevation [elevation-value] of current-patch
 
@@ -186,8 +188,8 @@ to spawn-forces
   clear-turtles
 
   ; SPAWN CHINESE (PVA) FIRST
-  let cluster-radius 30  ;; Controls spread of each cluster
-  let cluster-size 10  ;; Number of turtles per clump (adjust as needed)
+  let cluster-radius 30 ;; Controls spread of each cluster
+  let cluster-size 100  ;; Number of turtles per clump (adjust as needed)
   let offset (cluster-radius / 2)
 
   let global-max-patch max-one-of patches [elevation-value]
@@ -286,8 +288,8 @@ to spawn-forces
 
 
   ; SPAWN UN FORCES
-  let cluster-radius1 30  ;; Controls spread of each cluster
-  let cluster-size1 10
+  let cluster-radius1 30 ;; Controls spread of each cluster
+  let cluster-size1 100
 
   create-turtles cluster-size1 [
     setxy (max-x + random-float cluster-radius1 - cluster-radius1 / 2)
@@ -491,6 +493,7 @@ to export-patch-data
   file-close
 end
 
+; SHOOTING
 to-report compute-hit-probability [shooter target bullet_effectiveness bullet_range]
   let dist [distance target] of shooter
   let shooter-elevation [elevation-value] of shooter
@@ -626,7 +629,7 @@ hill_multiplier
 hill_multiplier
 0.01
 1.25
-1.25
+1.0
 0.01
 1
 NIL
