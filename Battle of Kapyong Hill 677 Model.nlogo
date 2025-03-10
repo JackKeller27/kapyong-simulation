@@ -188,99 +188,108 @@ to spawn-forces
   clear-turtles
 
   ; SPAWN CHINESE (PVA) FIRST
-  let cluster-radius 30 ;; Controls spread of each cluster
-  let cluster-size 100  ;; Number of turtles per clump (adjust as needed)
-  let offset (cluster-radius / 2)
+  let cluster-radius-pva 30 ;; Controls spread of each cluster
+  let cluster-size-pva 182  ;; # per clump (2,002 total)
+  let offset (cluster-radius-pva / 2)
 
   let global-max-patch max-one-of patches [elevation-value]
-  let max-x [pxcor] of global-max-patch
-  let max-y [pycor] of global-max-patch
+  let max-x [pxcor] of global-max-patch ; steepest point
+  let max-y [pycor] of global-max-patch ; steepest point
 
   ;; Clump 1: Top Left
-  create-turtles cluster-size [
-    setxy (min-pxcor + offset + random-float cluster-radius - cluster-radius / 2)
-          (max-pycor - offset + random-float cluster-radius - cluster-radius / 2)
+  create-turtles cluster-size-pva [
+    setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
+          (max-pycor - offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
     set shape "person"
     set color black
     pen-down
   ]
 
   ;; Clump 2: Top Middle
-  create-turtles cluster-size [
-    setxy (0 + random-float cluster-radius - cluster-radius / 2)
-          (max-pycor - offset + random-float cluster-radius - cluster-radius / 2)
+  create-turtles cluster-size-pva [
+    setxy (0 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+          (max-pycor - offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
     set shape "person"
     set color black
     pen-down
   ]
 
   ;; Clump 3: Bottom Left
-  create-turtles cluster-size [
-    setxy (min-pxcor + offset + random-float cluster-radius - cluster-radius / 2)
-          (min-pycor + offset + random-float cluster-radius - cluster-radius / 2)
+  create-turtles cluster-size-pva [
+    setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
+          (min-pycor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
     set shape "person"
     set color black
     pen-down
   ]
 
   ;; Clump 4: Middle Left
-  create-turtles cluster-size [
-    setxy (min-pxcor + offset + random-float cluster-radius - cluster-radius / 2)
-          (0 + random-float cluster-radius - cluster-radius / 2)
+  create-turtles cluster-size-pva [
+    setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
+          (0 + random-float cluster-radius-pva - cluster-radius-pva / 2)
     set shape "person"
     set color black
     pen-down
   ]
 
   ;; Clump 5: Between Top Left and Top Middle
-  create-turtles cluster-size [
-    setxy ((min-pxcor + offset) / 2 + random-float cluster-radius - cluster-radius / 2)
-    (max-pycor - offset + random-float cluster-radius - cluster-radius / 2)
+  create-turtles cluster-size-pva [
+    setxy ((min-pxcor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+    (max-pycor - offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
     set shape "person"
     set color black
     pen-down
   ]
 
   ;; Clump 6: Between Middle Left and Top Middle
-  create-turtles cluster-size [
-    setxy ((min-pxcor + offset) / 2 + random-float cluster-radius - cluster-radius / 2)
-    ((max-pycor - offset) / 2 + random-float cluster-radius - cluster-radius / 2)
+  create-turtles cluster-size-pva [
+    setxy ((min-pxcor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+    ((max-pycor - offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
     set shape "person"
     set color black
     pen-down
   ]
 
   ;; Clump 7: Under Top Left
-  create-turtles cluster-size [
-    setxy (min-pxcor + offset + random-float cluster-radius - cluster-radius / 2)
-    ((max-pycor - offset) / 2 + random-float cluster-radius - cluster-radius / 2)
+  create-turtles cluster-size-pva [
+    setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
+    ((max-pycor - offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
     set shape "person"
     set color black
     pen-down
   ]
 
   ;; Clump 8: Between Bottom Left and Middle Left
-  create-turtles cluster-size [
-    setxy ((min-pxcor + offset) / 2 + random-float cluster-radius - cluster-radius / 2)
-    ((min-pycor + offset) / 2 + random-float cluster-radius - cluster-radius / 2)
+  create-turtles cluster-size-pva [
+    setxy ((min-pxcor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+    ((min-pycor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
     set shape "person"
     set color black
     pen-down
   ]
 
   ;; Clump 9: Between Middle Left and Bottom Middle
-  create-turtles cluster-size [
-    setxy (min-pxcor + offset + random-float cluster-radius - cluster-radius / 2)
-    ((min-pycor + offset) / 2 + random-float cluster-radius - cluster-radius / 2)
+  create-turtles cluster-size-pva [
+    setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
+    ((min-pycor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
     set shape "person"
     set color black
     pen-down
   ]
 
   ;; Clump 10: Between Bottom Left and Bottom Middle
-  create-turtles cluster-size [
-    setxy ((min-pxcor + offset) / 2 + random-float cluster-radius - cluster-radius / 2)
-    (min-pycor + offset + random-float cluster-radius - cluster-radius / 2)
+  create-turtles cluster-size-pva [
+    setxy ((min-pxcor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+    (min-pycor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
+    set shape "person"
+    set color black
+    pen-down
+  ]
+
+  ;; Clump 11: Bottom Middle
+  create-turtles cluster-size-pva [
+    setxy (0 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+    (min-pycor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
     set shape "person"
     set color black
     pen-down
@@ -288,12 +297,12 @@ to spawn-forces
 
 
   ; SPAWN UN FORCES
-  let cluster-radius1 30 ;; Controls spread of each cluster
-  let cluster-size1 100
+  let cluster-radius-un 30 ;; Controls spread of each cluster
+  let cluster-size-un 100
 
-  create-turtles cluster-size1 [
-    setxy (max-x + random-float cluster-radius1 - cluster-radius1 / 2)
-          (max-y + random-float cluster-radius1 - cluster-radius1 / 2)
+  create-turtles cluster-size-un [
+    setxy (max-x + random-float cluster-radius-un - cluster-radius-un / 2)
+          (max-y + random-float cluster-radius-un - cluster-radius-un / 2)
     set shape "person"
     set color white  ;; Color different for visibility (optional)
     pen-down
@@ -314,21 +323,21 @@ to spawn-forces
 
   ; Machine guns (default 2)
   create-turtles num_machguns [
-    setxy (max-x + random-float cluster-radius1 - cluster-radius1 / 2)
-          (max-y + random-float cluster-radius1 - cluster-radius1 / 2)
+    setxy (max-x + random-float cluster-radius-un - cluster-radius-un / 2)
+          (max-y + random-float cluster-radius-un - cluster-radius-un / 2)
     set shape "machine-gun"
     set size 10
-    set color grey  ;; Color different for visibility (optional)
+    set color grey
     pen-down
   ]
 
   ; Mortars (default 3)
   create-turtles num_morts [
-    setxy (max-x + random-float cluster-radius1 - cluster-radius1 / 2)
-          (max-y + random-float cluster-radius1 - cluster-radius1 / 2)
+    setxy (max-x + random-float cluster-radius-un - cluster-radius-un / 2)
+          (max-y + random-float cluster-radius-un - cluster-radius-un / 2)
     set shape "mortar"
     set size 10
-    set color grey  ;; Color different for visibility (optional)
+    set color grey
     pen-down
   ]
 
@@ -629,7 +638,7 @@ hill_multiplier
 hill_multiplier
 0.01
 1.25
-1.0
+0.25
 0.01
 1
 NIL
@@ -896,11 +905,26 @@ Polygon -1184463 false false 105 105 105 255 195 255 195 105 150 105 105 105 105
 mortar
 true
 0
-Polygon -7500403 true true 165 0 165 15 180 150 195 165 195 180 180 195 165 225 135 225 120 195 105 180 105 165 120 150 135 15 135 0
+Polygon -7500403 true true 165 30 165 45 165 180 165 195 165 210 165 255 165 255 135 255 135 255 135 210 135 195 135 180 135 45 135 30
 Line -16777216 false 120 150 180 150
 Line -16777216 false 120 195 180 195
-Line -16777216 false 165 15 135 15
-Polygon -2674135 false false 165 0 135 0 135 15 120 150 105 165 105 180 120 195 135 225 165 225 180 195 195 180 195 165 180 150 165 15
+Line -16777216 false 165 30 135 30
+Polygon -2674135 false false 165 30 135 30 135 45 135 180 135 195 135 210 135 225 135 255 165 255 165 225 165 210 165 195 165 180 165 45
+Rectangle -7500403 true true 90 255 210 270
+Polygon -7500403 false true 90 255
+Rectangle -2674135 false false 90 255 210 270
+
+mortar2
+false
+0
+Polygon -7500403 true true 255 135 195 210 210 210 255 150 285 210 300 210 255 135 255 150
+Rectangle -7500403 true true 30 195 120 210
+Polygon -7500403 true true 120 165 120 165 75 180 75 195 255 135 255 120 75 180
+Polygon -2674135 false false 75 180 75 195 255 135 255 120
+Rectangle -7500403 true true 30 195 120 195
+Rectangle -7500403 true true 120 195 120 210
+Polygon -2674135 false false 75 195 30 195 30 210 120 210 120 195 75 195
+Polygon -2674135 false false 255 135 195 210 210 210 255 150 285 210 300 210 255 135
 
 pentagon
 false
@@ -927,6 +951,20 @@ Polygon -7500403 true true 165 180 165 210 225 180 255 120 210 135
 Polygon -7500403 true true 135 105 90 60 45 45 75 105 135 135
 Polygon -7500403 true true 165 105 165 135 225 105 255 45 210 60
 Polygon -7500403 true true 135 90 120 45 150 15 180 45 165 90
+
+rocket
+true
+0
+Polygon -7500403 true true 120 165 75 285 135 255 165 255 225 285 180 165
+Polygon -1 true false 135 285 105 135 105 105 120 45 135 15 150 0 165 15 180 45 195 105 195 135 165 285
+Rectangle -7500403 true true 147 176 153 288
+Polygon -7500403 true true 120 45 180 45 165 15 150 0 135 15
+Line -7500403 true 105 105 135 120
+Line -7500403 true 135 120 165 120
+Line -7500403 true 165 120 195 105
+Line -7500403 true 105 135 135 150
+Line -7500403 true 135 150 165 150
+Line -7500403 true 165 150 195 135
 
 sheep
 false
