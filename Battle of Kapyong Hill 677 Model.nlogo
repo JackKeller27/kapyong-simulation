@@ -125,7 +125,9 @@ to go
 
 
       let min-cost 999999999
+      let second-min-cost 999999999
       let best-patch nobody
+      let second-best-patch nobody
 
       foreach (sort neighbors) [neighbor ->
         if ([pxcor] of neighbor > min-pxcor and [pxcor] of neighbor < max-pxcor and
@@ -138,31 +140,41 @@ to go
           let avg-neighbor-elevation mean [elevation-value] of neighbors
 
           ;; Calculate elevation difference from the average
-          let elevation-diff [elevation-value] of neighbor - avg-neighbor-elevation
-          set elevation-diff abs(elevation-diff)
-
+          let elevation-diff abs([elevation-value] of neighbor - avg-neighbor-elevation)
 
           ;; Apply ridge penalty if the elevation difference is significant
           let ridge-penalty max (list 0 (30 * ([1 - gradient-value] of neighbor ^ 2)))
 
-
-
           let dist-to-target 2 * sqrt (([pxcor] of neighbor - [pxcor] of target-patch) ^ 2 +
-                               ([pycor] of neighbor - [pycor] of target-patch) ^ 2)
+            ([pycor] of neighbor - [pycor] of target-patch) ^ 2)
 
           let elevation-diff-to-target [elevation-value] of target-patch - [elevation-value] of neighbor
           let elevation-bonus ifelse-value (elevation-diff-to-target > 0) [-1 * elevation-diff-to-target * 2] [0]  ;; Reward uphill movement
           set elevation-bonus 0
+
           ;; Compute total movement cost
           let total-cost terrain-cost + ridge-penalty + dist-to-target + elevation-bonus
 
-
-          ;; Update best patch if this neighbor has a lower cost
-          if (total-cost < min-cost) [
+          ;; Update best and second-best patches
+          ifelse (total-cost < min-cost) [
+            set second-min-cost min-cost
+            set second-best-patch best-patch
             set min-cost total-cost
             set best-patch neighbor
           ]
+          [ ;; The else block for ifelse (must be a valid command block)
+            if (total-cost < second-min-cost) [
+              set second-min-cost total-cost
+              set second-best-patch neighbor
+            ]
+          ]
+
         ]
+      ]
+
+      ;; Randomly choose between the two best patches
+      if second-best-patch != nobody and random 2 = 0 and (min-cost / second-min-cost) > 0.7[
+        set best-patch second-best-patch
       ]
 
 
@@ -187,6 +199,7 @@ to go
       ]
     ]
   ]
+  tick
 end
 
 
@@ -240,7 +253,7 @@ to spawn-forces
 
   ; SPAWN CHINESE (PVA) FIRST
   let cluster-radius-pva 30 ;; Controls spread of each cluster
-  let cluster-size-pva 18  ;; # per clump (2,002 total)
+  let cluster-size-pva 181  ;; # per clump (2,002 total)
   let offset (cluster-radius-pva / 2)
 
   let global-max-patch max-one-of patches [elevation-value]
@@ -253,7 +266,7 @@ to spawn-forces
           (max-pycor - offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
     set shape "person"
     set color black
-    pen-down
+    ;;pen-down
   ]
 
   ;; Clump 2: Top Middle
@@ -262,7 +275,7 @@ to spawn-forces
           (max-pycor - offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
     set shape "person"
     set color black
-    pen-down
+    ;;pen-down
   ]
 
   ;; Clump 3: Bottom Left
@@ -271,7 +284,7 @@ to spawn-forces
           (min-pycor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
     set shape "person"
     set color black
-    pen-down
+    ;;pen-down
   ]
 
   ;; Clump 4: Middle Left
@@ -280,7 +293,7 @@ to spawn-forces
           (0 + random-float cluster-radius-pva - cluster-radius-pva / 2)
     set shape "person"
     set color black
-    pen-down
+    ;;pen-down
   ]
 
   ;; Clump 5: Between Top Left and Top Middle
@@ -289,7 +302,7 @@ to spawn-forces
     (max-pycor - offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
     set shape "person"
     set color black
-    pen-down
+    ;;pen-down
   ]
 
   ;; Clump 6: Between Middle Left and Top Middle
@@ -298,7 +311,7 @@ to spawn-forces
     ((max-pycor - offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
     set shape "person"
     set color black
-    pen-down
+    ;;pen-down
   ]
 
   ;; Clump 7: Under Top Left
@@ -307,7 +320,7 @@ to spawn-forces
     ((max-pycor - offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
     set shape "person"
     set color black
-    pen-down
+    ;;pen-down
   ]
 
   ;; Clump 8: Between Bottom Left and Middle Left
@@ -316,7 +329,7 @@ to spawn-forces
     ((min-pycor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
     set shape "person"
     set color black
-    pen-down
+    ;;pen-down
   ]
 
   ;; Clump 9: Between Middle Left and Bottom Middle
@@ -325,7 +338,7 @@ to spawn-forces
     ((min-pycor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
     set shape "person"
     set color black
-    pen-down
+    ;;pen-down
   ]
 
   ;; Clump 10: Between Bottom Left and Bottom Middle
@@ -334,7 +347,7 @@ to spawn-forces
     (min-pycor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
     set shape "person"
     set color black
-    pen-down
+    ;;pen-down
   ]
 
   ;; Clump 11: Bottom Middle
@@ -343,13 +356,13 @@ to spawn-forces
     (min-pycor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
     set shape "person"
     set color black
-    pen-down
+    ;;pen-down
   ]
 
 
   ; SPAWN UN FORCES
   let cluster-radius-un 30 ;; Controls spread of each cluster
-  let cluster-size-un 10
+  let cluster-size-un 100
 
   create-turtles cluster-size-un [
     setxy (max-x + random-float cluster-radius-un - cluster-radius-un / 2)
@@ -582,7 +595,7 @@ to shoot-at-black-agents
   if target != nobody and [distance target] of self <= shooting-range [
     let prob compute-hit-probability self target 3 25
     if random-float 1 < prob and prob > 0.2 [
-      print "black died"
+      ;; print "black died"
       ask target [ die ]  ;; Kill black agent if hit
     ]
   ]
@@ -596,7 +609,7 @@ to black-shoots-at-white
     let prob compute-hit-probability self target 1 10
 
     if random-float 1 < prob and prob > 0.2 [
-      print "white died"
+      ;; print "white died"
       ask target [ die ]  ;; Kill white agent if hit
     ]
   ]
@@ -623,8 +636,8 @@ GRAPHICS-WINDOW
 100
 -100
 100
-0
-0
+1
+1
 1
 ticks
 30.0
@@ -689,7 +702,7 @@ hill_multiplier
 hill_multiplier
 0.01
 1.25
-1.25
+1.0
 0.01
 1
 NIL
