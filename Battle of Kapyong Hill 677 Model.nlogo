@@ -24,10 +24,12 @@ globals [
   light-brown
   dark-brown
 
+  reset-timers
+
 ]
 
 ; SETUP
-patches-own [ gradient-value elevation-value]
+patches-own [ gradient-value elevation-value orig-color]
 
 
 ; ########################################################################################################################################
@@ -267,8 +269,8 @@ to spawn-forces
   clear-turtles
 
   ; SPAWN CHINESE (PVA) FIRST
-  let cluster-radius-pva 30 ;; Controls spread of each cluster
-  let cluster-size-pva 18  ;; # per clump (2,002 total)
+  let cluster-radius-pva 20 ;; Controls spread of each cluster
+  let cluster-size-pva 181  ;; # per clump (2,002 total)
   let offset (cluster-radius-pva / 2)
 
   let global-max-patch max-one-of patches [elevation-value]
@@ -376,8 +378,8 @@ to spawn-forces
 
 
   ; SPAWN UN FORCES
-  let cluster-radius-un 30 ;; Controls spread of each cluster
-  let cluster-size-un 10
+  let cluster-radius-un 15 ;; Controls spread of each cluster
+  let cluster-size-un 100
 
   create-turtles cluster-size-un [
     setxy (max-x + random-float cluster-radius-un - cluster-radius-un / 2)
@@ -557,6 +559,10 @@ end
 
 
 to go
+  reset-colors
+  if ticks mod 5 = 0 [  ; Conduct a strike every 50 ticks as an example
+    perform-artillery-strike
+  ]
   ask turtles with [color = white] [
     un-turtle-shoot-at-pva-turtle
   ]
@@ -573,12 +579,13 @@ to go
     let closest-white-turtle min-one-of turtles with [color = white] [distance myself]
     let target-patch 0
     ifelse closest-white-turtle = nobody [
-      set target-patch max-one-of patches [elevation-value]
+      stop
+      ; set target-patch max-one-of patches [elevation-value]
     ] [
       set target-patch [patch-here] of closest-white-turtle
     ]
 
-    if target-patch != nobody [
+    ifelse target-patch != nobody [
 
 
       if patch-here = closest-white-turtle [
@@ -653,15 +660,81 @@ to go
         face best-patch
 
         ;; Compute movement speed dynamically based on chosen patch
-        set movement-speed (speed-scale * 0.147 * exp (-3.5 * abs tan ([gradient-value] of best-patch * 100) + 0.05))  ;; Tobler’s formula
-        let real-speed (movement-speed / 133.56) * 1.60934 * 3600 / speed-scale
+        set movement-speed (0.371 * exp (-3.5 * abs tan ([gradient-value] of best-patch * 100) + 0.05))  ;; Tobler’s formula
+        let real-speed (movement-speed * 18 / 5) * 3.6
         ;; print (word "Current speed: " real-speed)
         fd movement-speed
       ]
+    ] [
+        stop
     ]
   ]
   tick
 end
+
+
+; ########################################################################################################################################
+;                                                             Artilery Method
+; ########################################################################################################################################
+
+
+
+
+
+
+to perform-artillery-strike
+  let target max-one-of patches [count turtles-here]
+
+  ask target [
+    ; Define the impact zone
+    let immediate-death-zone turtles-here
+    let near-zone turtles in-radius 2
+
+    ; Execute immediate effects in the center
+    ; let sure-deaths count immediate-death-zone
+    ; ask immediate-death-zone [ die ]
+    let sure-deaths 0
+    ask immediate-death-zone [
+      if random-float 1.0 < 0.75 [  ; 90% chance to die
+        set sure-deaths sure-deaths + 1
+        die
+
+      ]
+    ]
+    print (word "Total turtles immediately killed: " sure-deaths)
+
+    ; Calculate and execute probabilistic effects in the surrounding area TODO
+
+
+    ; Visual effects for the strike
+    ask patches in-radius 3 [
+      set orig-color pcolor
+      set pcolor red
+    ]
+
+    set reset-timers 1
+
+    ; Report total probable and immediate deaths
+    ; print (word "Total probable deaths: " probable-deaths)
+  ]
+
+end
+
+
+to reset-colors
+  if reset-timers > 0 [
+    set reset-timers reset-timers - 1
+    if reset-timers = 0 [
+      ask patches with [pcolor = red] [  ; Only reset patches that are currently red
+        set pcolor orig-color  ; Restore the original color
+      ]
+    ]
+  ]
+end
+
+
+
+
 @#$#@#$#@
 GRAPHICS-WINDOW
 253
@@ -750,7 +823,7 @@ hill_multiplier
 hill_multiplier
 0.01
 1.25
-0.01
+1.0
 0.01
 1
 NIL
