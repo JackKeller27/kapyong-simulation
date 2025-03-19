@@ -26,6 +26,11 @@ globals [
 
   reset-timers
 
+  un-soldier-kills
+  un-artilerly-kills
+  pva-soldier-kills
+
+
 ]
 
 ; SETUP
@@ -233,6 +238,11 @@ to setup
   ;  print lat-range
   ;  print lon-range
 
+
+  set un-soldier-kills 0
+  set un-artilerly-kills 0
+  set pva-soldier-kills 0
+
   ; Import patch data from pre-saved file
   carefully [import-patch-data] [print "Environment must be 201x201 patches"]
 
@@ -270,7 +280,7 @@ to spawn-forces
 
   ; SPAWN CHINESE (PVA) FIRST
   let cluster-radius-pva 20 ;; Controls spread of each cluster
-  let cluster-size-pva 181  ;; # per clump (2,002 total)
+  let cluster-size-pva 18 * 4  ;; # per clump (2,002 total)
   let offset (cluster-radius-pva / 2)
 
   let global-max-patch max-one-of patches [elevation-value]
@@ -278,22 +288,22 @@ to spawn-forces
   let max-y [pycor] of global-max-patch ; steepest point
 
   ;; Clump 1: Top Left
-  create-turtles cluster-size-pva [
-    setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
-          (max-pycor - offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
-    set shape "person"
-    set color black
+  ;; create-turtles cluster-size-pva [
+  ;;   setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
+  ;;         (max-pycor - offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
+  ;;   set shape "person"
+  ;;   set color black
     ;;pen-down
-  ]
+  ;; ]
 
   ;; Clump 2: Top Middle
-  create-turtles cluster-size-pva [
-    setxy (0 + random-float cluster-radius-pva - cluster-radius-pva / 2)
-          (max-pycor - offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
-    set shape "person"
-    set color black
+  ;; create-turtles cluster-size-pva [
+  ;;   setxy (0 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+  ;;         (max-pycor - offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
+  ;;   set shape "person"
+  ;;   set color black
     ;;pen-down
-  ]
+  ;; ]
 
   ;; Clump 3: Bottom Left
   create-turtles cluster-size-pva [
@@ -305,13 +315,13 @@ to spawn-forces
   ]
 
   ;; Clump 4: Middle Left
-  create-turtles cluster-size-pva [
-    setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
-          (0 + random-float cluster-radius-pva - cluster-radius-pva / 2)
-    set shape "person"
-    set color black
-    ;;pen-down
-  ]
+  ;; create-turtles cluster-size-pva [
+  ;;   setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
+  ;;         (0 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+  ;;   set shape "person"
+  ;;   set color black
+  ;;   ;;pen-down
+  ;; ]
 
   ;; Clump 5: Between Top Left and Top Middle
   create-turtles cluster-size-pva [
@@ -323,40 +333,40 @@ to spawn-forces
   ]
 
   ;; Clump 6: Between Middle Left and Top Middle
-  create-turtles cluster-size-pva [
-    setxy ((min-pxcor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
-    ((max-pycor - offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
-    set shape "person"
-    set color black
+  ;; create-turtles cluster-size-pva [
+  ;;   setxy ((min-pxcor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+  ;;   ((max-pycor - offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+  ;;   set shape "person"
+  ;;   set color black
     ;;pen-down
-  ]
+  ;; ]
 
   ;; Clump 7: Under Top Left
-  create-turtles cluster-size-pva [
-    setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
-    ((max-pycor - offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
-    set shape "person"
-    set color black
+  ;; create-turtles cluster-size-pva [
+  ;;   setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
+  ;;   ((max-pycor - offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+  ;;   set shape "person"
+  ;;   set color black
     ;;pen-down
-  ]
+  ;; ]
 
   ;; Clump 8: Between Bottom Left and Middle Left
-  create-turtles cluster-size-pva [
-    setxy ((min-pxcor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
-    ((min-pycor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
-    set shape "person"
-    set color black
+  ;; create-turtles cluster-size-pva [
+  ;;   setxy ((min-pxcor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+  ;;   ((min-pycor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+  ;;   set shape "person"
+  ;;   set color black
     ;;pen-down
-  ]
+  ;; ]
 
   ;; Clump 9: Between Middle Left and Bottom Middle
-  create-turtles cluster-size-pva [
-    setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
-    ((min-pycor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
-    set shape "person"
-    set color black
+  ;; create-turtles cluster-size-pva [
+  ;;   setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
+  ;;   ((min-pycor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+  ;;   set shape "person"
+  ;;   set color black
     ;;pen-down
-  ]
+  ;; ]
 
   ;; Clump 10: Between Bottom Left and Bottom Middle
   create-turtles cluster-size-pva [
@@ -368,18 +378,18 @@ to spawn-forces
   ]
 
   ;; Clump 11: Bottom Middle
-  create-turtles cluster-size-pva [
-    setxy (0 + random-float cluster-radius-pva - cluster-radius-pva / 2)
-    (min-pycor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
-    set shape "person"
-    set color black
+  ;; create-turtles cluster-size-pva [
+  ;;   setxy (0 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+  ;;   (min-pycor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
+  ;;   set shape "person"
+  ;;   set color black
     ;;pen-down
-  ]
+  ;; ]
 
 
   ; SPAWN UN FORCES
   let cluster-radius-un 15 ;; Controls spread of each cluster
-  let cluster-size-un 100
+  let cluster-size-un 10
 
   create-turtles cluster-size-un [
     setxy (max-x + random-float cluster-radius-un - cluster-radius-un / 2)
@@ -434,11 +444,11 @@ to color-patches-with-elevation
       ; set pcolor scale-color brown plabel min-gradient max-gradient
 
       ; Green -> Brown scale
-      let norm-elevation (elevation-value - min-elevation) / (max-elevation - min-elevation) ; normalize elevation between [0, 1]
+      let norm-elevation ((elevation-value - min-elevation) / (max-elevation - min-elevation)) / hill_multiplier ; normalize elevation between [0, 1]
 
       ; Assign color based on thresholded ranges
-      if norm-elevation < 0.2 [ set pcolor light-green ]  ; Flat grass
-      if norm-elevation >= 0.2 and norm-elevation < 0.4 [ set pcolor dark-green ]  ; Light hills
+      if norm-elevation < 0.1 [ set pcolor light-green ]  ; Flat grass
+      if norm-elevation >= 0.1 and norm-elevation < 0.4 [ set pcolor dark-green ]  ; Light hills
       if norm-elevation >= 0.4 and norm-elevation < 0.6 [ set pcolor brownish-green ]  ; Medium terrain
       if norm-elevation >= 0.6 and norm-elevation < 0.8 [ set pcolor light-brown ]  ;; Steeper terrain
       if norm-elevation >= 0.8 [ set pcolor dark-brown ]  ;; Very steep terrain/rocky cliffs
@@ -463,8 +473,8 @@ to color-patches-with-gradient
       let norm-gradient (gradient-value - min-gradient) / (max-gradient - min-gradient) ; normalize gradient between [0, 1]
 
       ; Assign color based on thresholded ranges
-      if norm-gradient < 0.2 [ set pcolor light-green ]  ; Flat grass
-      if norm-gradient >= 0.2 and norm-gradient < 0.4 [ set pcolor dark-green ]  ; Light hills
+      if norm-gradient < 0.1 [ set pcolor light-green ]  ; Flat grass
+      if norm-gradient >= 0.1 and norm-gradient < 0.4 [ set pcolor dark-green ]  ; Light hills
       if norm-gradient >= 0.4 and norm-gradient < 0.6 [ set pcolor brownish-green ]  ; Medium terrain
       if norm-gradient >= 0.6 and norm-gradient < 0.8 [ set pcolor light-brown ]  ;; Steeper terrain
       if norm-gradient >= 0.8 [ set pcolor dark-brown ]  ;; Very steep terrain/rocky cliffs
@@ -489,13 +499,15 @@ end
 
 to un-turtle-shoot-at-pva-turtle
   let shooting-range 100  ;; Maximum shooting distance
-  let fire-rate calculate-fire-rate 3
+  let fire-rate calculate-fire-rate 4
+
   if (ticks - last-shot-time >=  fire-rate - random (5)) [
     set last-shot-time ticks
     let target min-one-of turtles with [color = black] [distance self]
     if target != nobody and [distance target] of self <= shooting-range [
-      let prob compute-hit-probability self target 3 25
-      if random-float 1 < prob and prob > 0.2 [
+      let prob compute-hit-probability-for-un self target 1 25
+      if random-float 1 < prob and prob > 0.2[
+        set un-soldier-kills un-soldier-kills + 1
         ask target [ die ]
       ]
     ]
@@ -509,10 +521,11 @@ to pva-turtle-shoot-at-un-turtle
   let target min-one-of turtles with [color = white] [distance self]
 
   if target != nobody and [distance target] of self <= shooting-range [
-    let prob compute-hit-probability self target 1 10
-
-    if random-float 1 < prob and prob > 0.2 [
+    let prob compute-hit-probability-for-pva self target 2 10
+    if random-float 1 < prob and prob > 0.001 [
       ;; print "white died"
+      print prob
+      set pva-soldier-kills pva-soldier-kills + 1
       ask target [ die ]  ;; Kill white agent if hit
     ]
   ]
@@ -520,7 +533,7 @@ end
 
 
 ; SHOOTING
-to-report compute-hit-probability [shooter target bullet_effectiveness bullet_range]
+to-report compute-hit-probability-for-pva [shooter target bullet_effectiveness bullet_range]
   let dist [distance target] of shooter
   let shooter-elevation [elevation-value] of shooter
   let target-elevation [elevation-value] of target
@@ -532,7 +545,33 @@ to-report compute-hit-probability [shooter target bullet_effectiveness bullet_ra
   let r-theta (4 - ((theta * 100) / 15)) ^ 2
   let R bullet_effectiveness
   let D bullet_range
-  let hit-probability (exp (-1 * R / r-theta)) * exp ((-1 * dist) / D)
+  let hit-probability-at-25 (exp (-1 * R / r-theta)) * exp ((-1 * dist) / D)
+
+  let hit-probability 0
+  ifelse dist <= bullet_range [
+    set hit-probability 1 - (1 - hit-probability-at-25) * exp (-5 * (bullet_range - dist) / bullet_range)
+  ] [
+    set hit-probability (exp (-1 * R / r-theta)) * exp ((-1 * dist) / D)
+  ]
+
+  report hit-probability
+end
+
+to-report compute-hit-probability-for-un [shooter target bullet_effectiveness bullet_range]
+  let dist [distance target] of shooter
+  let shooter-elevation [elevation-value] of shooter
+  let target-elevation [elevation-value] of target
+  let grad (target-elevation - shooter-elevation) / (dist * meters-per-patch)
+
+  let theta grad
+  let s (tanh theta)
+
+  let r-theta (4 - ((theta * 100) / 15)) ^ 2
+  let R bullet_effectiveness
+  let D bullet_range
+  let hit-probability (exp (-1 * R / r-theta)) * exp ((-1 * dist) / D) / 2
+
+
   report hit-probability
 end
 
@@ -545,13 +584,14 @@ end
 to-report calculate-fire-rate [k]
   let min_hill 0.01
   let max_hill 1.25
-  let max_rate 15
+  let max_rate 20
   let min_rate 1
 
   let normalized_hill (hill_multiplier - min_hill) / (max_hill - min_hill)
   let fire_rate min_rate + (max_rate - min_rate) * (normalized_hill ^ k)
   report fire_rate  ; Returns the calculated fire rate
 end
+
 
 ; ########################################################################################################################################
 ;                                                             GO METHOD
@@ -560,7 +600,7 @@ end
 
 to go
   reset-colors
-  if ticks mod 5 = 0 [  ; Conduct a strike every 50 ticks as an example
+  if ticks mod 10 = 0 [  ; Conduct a strike every 50 ticks as an example
     perform-artillery-strike
   ]
   ask turtles with [color = white] [
@@ -683,39 +723,42 @@ end
 
 
 to perform-artillery-strike
-  let target max-one-of patches [count turtles-here]
+  let target max-one-of patches [count turtles-here with [color = black]]
 
   ask target [
-    ; Define the impact zone
+
     let immediate-death-zone turtles-here
     let near-zone turtles in-radius 2
 
-    ; Execute immediate effects in the center
-    ; let sure-deaths count immediate-death-zone
-    ; ask immediate-death-zone [ die ]
     let sure-deaths 0
     ask immediate-death-zone [
-      if random-float 1.0 < 0.75 [  ; 90% chance to die
-        set sure-deaths sure-deaths + 1
+      if random-float 1.0 < 0.05 [  ; 90% chance to die
+        set un-artilerly-kills un-artilerly-kills + 1
         die
 
       ]
     ]
-    print (word "Total turtles immediately killed: " sure-deaths)
+    ; print (word "Total turtles immediately killed: " sure-deaths)
 
     ; Calculate and execute probabilistic effects in the surrounding area TODO
+    let near-deaths 0
+      ask near-zone [
+        if random-float 1.0 < 0.1 [  ; 30% chance to die
+          set near-deaths near-deaths + 1
+          die
+        ]
+      ]
+      ; print (word "Total turtles killed in the near zone: " near-deaths)
 
 
-    ; Visual effects for the strike
-    ask patches in-radius 3 [
+
+    ask patches in-radius 2 [
       set orig-color pcolor
       set pcolor red
     ]
 
-    set reset-timers 1
+    set reset-timers 5
 
-    ; Report total probable and immediate deaths
-    ; print (word "Total probable deaths: " probable-deaths)
   ]
 
 end
@@ -731,6 +774,7 @@ to reset-colors
     ]
   ]
 end
+
 
 
 
@@ -868,6 +912,60 @@ W
 24
 15.0
 1
+
+PLOT
+846
+128
+1046
+278
+un agents kills
+time step
+kills
+0.0
+1000.0
+0.0
+200.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot un-soldier-kills"
+
+PLOT
+884
+346
+1084
+496
+artilery kills
+time step
+artilery kills
+0.0
+1000.0
+0.0
+200.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot un-artilerly-kills"
+
+PLOT
+1106
+129
+1306
+279
+pva agents kills
+time step
+kills
+0.0
+1000.0
+0.0
+20.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot pva-soldier-kills"
 
 @#$#@#$#@
 ## WHAT IS IT?
