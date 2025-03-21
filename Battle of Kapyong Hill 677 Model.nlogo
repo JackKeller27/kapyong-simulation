@@ -1,13 +1,12 @@
 extensions [csv]
-turtles-own [ movement-speed last-shot-time]
 
 globals [
   ; CSV data
   gradient-data
   elevation-data
 
-  ; Patch data
-   meters-per-patch
+  ; Patch params
+  meters-per-patch
   num-patches-x
   num-patches-y
   lat-min lat-max lon-min lon-max
@@ -17,6 +16,9 @@ globals [
   lat-range lon-range
   patch-lat-dim patch-lon-dim
 
+  ; Turtle params
+  max-energy
+
   ; Custom colors
   dark-green
   light-green
@@ -24,17 +26,26 @@ globals [
   light-brown
   dark-brown
 
+  ; Night colors:
+  light-blue
+  dark-blue
+  gray-blue
+  ; dark-brown already declared
+  near-black
+
   reset-timers
 
   un-soldier-kills
   un-artilerly-kills
   pva-soldier-kills
-
-
 ]
 
-; SETUP
+; Patch and turtle variables
 patches-own [ gradient-value elevation-value orig-color]
+turtles-own [movement-speed last-shot-time energy resting?]
+
+; Custom breeds
+breed [rings ring]  ;; Pulsing effect while resting
 
 
 ; ########################################################################################################################################
@@ -209,12 +220,21 @@ to setup
 ;  set num-patches-x max-pxcor * 2 + 1 ; + 1 accounts for patch 00
 ;  set num-patches-y max-pycor * 2 + 1 ; + 1 accounts for patch 00
 
+  ; Set turtle params
+  set max-energy 100
+
   ; Set custom colors
   set light-green 66
   set dark-green 64
   set brownish-green 36
   set light-brown 35
   set dark-brown 32
+
+  ; Night colors:
+  set light-blue 94
+  set dark-blue 104
+  set gray-blue 93
+  set near-black 1
 
   ; Meters per patch
   set meters-per-patch 9.03
@@ -280,7 +300,7 @@ to spawn-forces
 
   ; SPAWN CHINESE (PVA) FIRST
   let cluster-radius-pva 20 ;; Controls spread of each cluster
-  let cluster-size-pva 18 * 4  ;; # per clump (2,002 total)
+  let cluster-size-pva 18 * 4  ;; # 182 per clump (2,002 total)
   let offset (cluster-radius-pva / 2)
 
   let global-max-patch max-one-of patches [elevation-value]
@@ -389,7 +409,7 @@ to spawn-forces
 
   ; SPAWN UN FORCES
   let cluster-radius-un 15 ;; Controls spread of each cluster
-  let cluster-size-un 10
+  let cluster-size-un 10 ;; 100 (2 PPCLI D Company)
 
   create-turtles cluster-size-un [
     setxy (max-x + random-float cluster-radius-un - cluster-radius-un / 2)
@@ -397,6 +417,8 @@ to spawn-forces
     set shape "person"
     set color white  ;; Color different for visibility (optional)
     set last-shot-time 0
+    set energy 100 ; max energy
+    set resting? false
 
     pen-down
   ]
@@ -447,11 +469,19 @@ to color-patches-with-elevation
       let norm-elevation ((elevation-value - min-elevation) / (max-elevation - min-elevation)) / hill_multiplier ; normalize elevation between [0, 1]
 
       ; Assign color based on thresholded ranges
+      ; DAY COLORS
       if norm-elevation < 0.1 [ set pcolor light-green ]  ; Flat grass
       if norm-elevation >= 0.1 and norm-elevation < 0.4 [ set pcolor dark-green ]  ; Light hills
       if norm-elevation >= 0.4 and norm-elevation < 0.6 [ set pcolor brownish-green ]  ; Medium terrain
       if norm-elevation >= 0.6 and norm-elevation < 0.8 [ set pcolor light-brown ]  ;; Steeper terrain
       if norm-elevation >= 0.8 [ set pcolor dark-brown ]  ;; Very steep terrain/rocky cliffs
+
+;      ; NIGHT COLORS
+;      if norm-elevation < 0.1 [ set pcolor light-blue ]  ; Flat grass
+;      if norm-elevation >= 0.1 and norm-elevation < 0.4 [ set pcolor dark-blue ]  ; Light hills
+;      if norm-elevation >= 0.4 and norm-elevation < 0.6 [ set pcolor gray-blue ]  ; Medium terrain
+;      if norm-elevation >= 0.6 and norm-elevation < 0.8 [ set pcolor dark-brown ]  ;; Steeper terrain
+;      if norm-elevation >= 0.8 [ set pcolor near-black ]  ;; Very steep terrain/rocky cliffs
     ]
 
     ; Set patches with no elevation data to grey
@@ -497,7 +527,7 @@ end
 ; ########################################################################################################################################
 
 
-to un-turtle-shoot-at-pva-turtle
+to un-turtle-shoot-at-pva-turtle [energy-multiplier]
   let shooting-range 100  ;; Maximum shooting distance
   let fire-rate calculate-fire-rate 4
 
@@ -505,10 +535,14 @@ to un-turtle-shoot-at-pva-turtle
     set last-shot-time ticks
     let target min-one-of turtles with [color = black] [distance self]
     if target != nobody and [distance target] of self <= shooting-range [
-      let prob compute-hit-probability-for-un self target 1 25
+      let prob compute-hit-probability-for-un self target 1 25 hill_cover ;; params: shooter, target, bullet_effectiveness, bullet_range, cover_factor
+
+      ;; Account for energy level
+      set prob (prob * energy-multiplier)
+
       if random-float 1 < prob and prob > 0.2[
         set un-soldier-kills un-soldier-kills + 1
-        ask target [ die ]
+        ask target [ die ] ;; Kill black agent if hit
       ]
     ]
   ]
@@ -516,12 +550,16 @@ end
 
 
 
-to pva-turtle-shoot-at-un-turtle
+to pva-turtle-shoot-at-un-turtle [energy-multiplier]
   let shooting-range 100  ;; Maximum shooting distance
   let target min-one-of turtles with [color = white] [distance self]
 
   if target != nobody and [distance target] of self <= shooting-range [
-    let prob compute-hit-probability-for-pva self target 2 10
+    let prob compute-hit-probability-for-pva self target 2 10 ;; params: shooter, target, bullet_effectiveness, bullet_range
+
+    ;; Account for energy level
+    set prob (prob * energy-multiplier)
+
     if random-float 1 < prob and prob > 0.001 [
       ;; print "white died"
       print prob
@@ -532,7 +570,7 @@ to pva-turtle-shoot-at-un-turtle
 end
 
 
-; SHOOTING
+; SHOOTING PROBABILITIES
 to-report compute-hit-probability-for-pva [shooter target bullet_effectiveness bullet_range]
   let dist [distance target] of shooter
   let shooter-elevation [elevation-value] of shooter
@@ -557,7 +595,7 @@ to-report compute-hit-probability-for-pva [shooter target bullet_effectiveness b
   report hit-probability
 end
 
-to-report compute-hit-probability-for-un [shooter target bullet_effectiveness bullet_range]
+to-report compute-hit-probability-for-un [shooter target bullet_effectiveness bullet_range cover_factor]
   let dist [distance target] of shooter
   let shooter-elevation [elevation-value] of shooter
   let target-elevation [elevation-value] of target
@@ -571,6 +609,9 @@ to-report compute-hit-probability-for-un [shooter target bullet_effectiveness bu
   let D bullet_range
   let hit-probability (exp (-1 * R / r-theta)) * exp ((-1 * dist) / D) / 2
 
+
+  ; Multiply entire prob by cover factor
+  set hit-probability hit-probability * (1 - cover_factor)
 
   report hit-probability
 end
@@ -600,125 +641,217 @@ end
 
 to go
   reset-colors
+
+  ;; STEPS PER TICK
+  ;; 1. Perform artillery strike
+  ;; 2. Agents shoot
+  ;; 3. Weapons shoot
+  ;; 4. Agents (PVA) move
+
+
   if ticks mod 10 = 0 [  ; Conduct a strike every 50 ticks as an example
     perform-artillery-strike
   ]
+
+  ; UN turtles
   ask turtles with [color = white] [
-    un-turtle-shoot-at-pva-turtle
-  ]
-  ask turtles with [color = black][
-    pva-turtle-shoot-at-un-turtle
-
-
-
-    let current-patch patch-here
-    let current-elevation [elevation-value] of current-patch
-    let current-target patch-here
-
-    ;; Step 1: Identify the global maximum elevation patch
-    let closest-white-turtle min-one-of turtles with [color = white] [distance myself]
-    let target-patch 0
-    ifelse closest-white-turtle = nobody [
-      stop
-      ; set target-patch max-one-of patches [elevation-value]
-    ] [
-      set target-patch [patch-here] of closest-white-turtle
+    ; Check if resting
+    ifelse resting? = true [
+      rest
     ]
+    [
+      ; Deplete energy and get energy multiplier (energy / max-energy)
+      let energy-multiplier deplete-energy self
 
-    ifelse target-patch != nobody [
+      ; Shoot
+      un-turtle-shoot-at-pva-turtle energy-multiplier
+    ]
+  ]
 
+  ; PVA turtles
+  ask turtles with [color = black][
+    ; Check if resting
+    ifelse resting? = true [
+      rest
+    ]
+    [
+      ; Deplete energy and get energy multiplier (energy / max-energy)
+      let energy-multiplier deplete-energy self
 
-      if patch-here = closest-white-turtle [
+      ; Shoot
+      pva-turtle-shoot-at-un-turtle energy-multiplier
+
+      ; Move
+      let current-patch patch-here
+      let current-elevation [elevation-value] of current-patch
+      let current-target patch-here
+
+      ;; Step 1: Identify the global maximum elevation patch
+      let closest-white-turtle min-one-of turtles with [color = white] [distance myself]
+      let target-patch 0
+      ifelse closest-white-turtle = nobody [
         stop
+        ; set target-patch max-one-of patches [elevation-value]
+      ] [
+        set target-patch [patch-here] of closest-white-turtle
       ]
 
-      ;; Step 2: Find neighboring patches
-      let candidate-patches neighbors
-
-      let speed-scale 10
+      ifelse target-patch != nobody [
 
 
+        if patch-here = closest-white-turtle [
+          stop
+        ]
 
-      let min-cost 999999999
-      let second-min-cost 999999999
-      let best-patch nobody
-      let second-best-patch nobody
+        ;; Step 2: Find neighboring patches
+        let candidate-patches neighbors
 
-      foreach (sort neighbors) [neighbor ->
-        if ([pxcor] of neighbor > min-pxcor and [pxcor] of neighbor < max-pxcor and
-          [pycor] of neighbor > min-pycor and [pycor] of neighbor < max-pycor) [
+        let speed-scale 10
 
-          ;; Calculate terrain movement cost using Tobler’s cost function
-          let terrain-cost -1 * (6 * exp (-3.5 * abs tan ([gradient-value] of neighbor * 100)))
 
-          ;; Compute average elevation of neighboring patches
-          let avg-neighbor-elevation mean [elevation-value] of neighbors
 
-          ;; Calculate elevation difference from the average
-          let elevation-diff abs([elevation-value] of neighbor - avg-neighbor-elevation)
+        let min-cost 999999999
+        let second-min-cost 999999999
+        let best-patch nobody
+        let second-best-patch nobody
 
-          ;; Apply ridge penalty if the elevation difference is significant
-          let ridge-penalty max (list 0 (30 * ([1 - gradient-value] of neighbor ^ 2)))
+        foreach (sort neighbors) [neighbor ->
+          if ([pxcor] of neighbor > min-pxcor and [pxcor] of neighbor < max-pxcor and
+            [pycor] of neighbor > min-pycor and [pycor] of neighbor < max-pycor) [
 
-          let dist-to-target 2 * sqrt (([pxcor] of neighbor - [pxcor] of target-patch) ^ 2 +
-            ([pycor] of neighbor - [pycor] of target-patch) ^ 2)
+            ;; Calculate terrain movement cost using Tobler’s cost function
+            let terrain-cost -1 * (6 * exp (-3.5 * abs tan ([gradient-value] of neighbor * 100)))
 
-          let elevation-diff-to-target [elevation-value] of target-patch - [elevation-value] of neighbor
-          let elevation-bonus ifelse-value (elevation-diff-to-target > 0) [-1 * elevation-diff-to-target * 2] [0]  ;; Reward uphill movement
-          set elevation-bonus 0
+            ;; Compute average elevation of neighboring patches
+            let avg-neighbor-elevation mean [elevation-value] of neighbors
 
-          ;; Compute total movement cost
-          let total-cost terrain-cost + ridge-penalty + dist-to-target + elevation-bonus
+            ;; Calculate elevation difference from the average
+            let elevation-diff abs([elevation-value] of neighbor - avg-neighbor-elevation)
 
-          ;; Update best and second-best patches
-          ifelse (total-cost < min-cost) [
-            set second-min-cost min-cost
-            set second-best-patch best-patch
-            set min-cost total-cost
-            set best-patch neighbor
-          ]
-          [ ;; The else block for ifelse (must be a valid command block)
-            if (total-cost < second-min-cost) [
-              set second-min-cost total-cost
-              set second-best-patch neighbor
+            ;; Apply ridge penalty if the elevation difference is significant
+            let ridge-penalty max (list 0 (30 * ([1 - gradient-value] of neighbor ^ 2)))
+
+            let dist-to-target 2 * sqrt (([pxcor] of neighbor - [pxcor] of target-patch) ^ 2 +
+              ([pycor] of neighbor - [pycor] of target-patch) ^ 2)
+
+            let elevation-diff-to-target [elevation-value] of target-patch - [elevation-value] of neighbor
+            let elevation-bonus ifelse-value (elevation-diff-to-target > 0) [-1 * elevation-diff-to-target * 2] [0]  ;; Reward uphill movement
+            set elevation-bonus 0
+
+            ;; Compute total movement cost
+            let total-cost terrain-cost + ridge-penalty + dist-to-target + elevation-bonus
+
+            ;; Update best and second-best patches
+            ifelse (total-cost < min-cost) [
+              set second-min-cost min-cost
+              set second-best-patch best-patch
+              set min-cost total-cost
+              set best-patch neighbor
+            ]
+            [ ;; The else block for ifelse (must be a valid command block)
+              if (total-cost < second-min-cost) [
+                set second-min-cost total-cost
+                set second-best-patch neighbor
+              ]
             ]
           ]
-
         ]
-      ]
 
-      ;; Randomly choose between the two best patches
-      if second-best-patch != nobody and random 2 = 0 and (min-cost / second-min-cost) > 0.7[
-        set best-patch second-best-patch
-      ]
+        ;; Randomly choose between the two best patches
+        if second-best-patch != nobody and random 2 = 0 and (min-cost / second-min-cost) > 0.7[
+          set best-patch second-best-patch
+        ]
 
+        ;; Move toward the best patch if it's valid
+        if best-patch != nobody [
+          face best-patch
 
+          ;; Compute movement speed dynamically based on chosen patch
+          set movement-speed (0.371 * exp (-3.5 * abs tan ([gradient-value] of best-patch * 100) + 0.05))  ;; Tobler’s formula
+          let real-speed (movement-speed * 18 / 5) * 3.6
+          ;; print (word "Current speed: " real-speed)
 
-
-    ;; Move toward the best patch if it's valid
-      if best-patch != nobody [
-        face best-patch
-
-        ;; Compute movement speed dynamically based on chosen patch
-        set movement-speed (0.371 * exp (-3.5 * abs tan ([gradient-value] of best-patch * 100) + 0.05))  ;; Tobler’s formula
-        let real-speed (movement-speed * 18 / 5) * 3.6
-        ;; print (word "Current speed: " real-speed)
-        fd movement-speed
-      ]
-    ] [
+          ; Move
+          fd movement-speed * energy-multiplier
+        ]
+      ] [
         stop
+      ]
     ]
   ]
+
+  fade-rings
   tick
 end
 
 
+
 ; ########################################################################################################################################
-;                                                             Artilery Method
+;                                                             Energy/Resting Methods
 ; ########################################################################################################################################
 
 
+to-report deplete-energy [soldier]
+  let slope [gradient-value] of soldier
+  let normalized-slope (slope / max-gradient)  ;; Between [0,1]
+  let k 1.0                       ;; Energy loss per slope unit (movement)
+  let m 0.5                       ;; Base energy loss per tick (shooting)
 
+  ;; Compute new energy level
+  ask soldier [
+    set energy energy - (k * normalized-slope) - m
+
+    ;; Rest if energy < 20% (75% chance)
+    if energy < 20 and random-float 1.0 < 0.75 [
+      set resting? true
+    ]
+
+    ;; If energy is completely depleted, must rest
+    if energy < 0 [
+      set resting? true
+      set energy 0
+    ]
+  ]
+
+  ;; Return energy percentage as a multiplier
+  report ([energy] of soldier) / max-energy
+end
+
+
+to rest
+  ; Show yellow ring while resting
+;  pulse-ring
+
+  let r 2  ;; Recovery rate per tick
+  set energy (energy + r)
+
+  ;; Stop resting when recovered to > 40% energy (50% chance)
+  if energy > 40 and random-float 1.0 < 0.5 [
+    set resting? false
+  ]
+end
+
+
+; Movement visuals
+to pulse-ring
+  hatch-rings 1 [
+    set size 2.5
+    set color yellow
+    set shape "circle 2"
+  ]
+end
+
+to fade-rings
+  ask rings [
+    set size size + 1
+;    set color color - 5  ;; Gradually fade color (reduce brightness)
+    if size > 6 [ die ]  ;; Remove ring after expanding
+  ]
+end
+
+; ########################################################################################################################################
+;                                                             Artillery Method
+; ########################################################################################################################################
 
 
 
@@ -774,7 +907,6 @@ to reset-colors
     ]
   ]
 end
-
 
 
 
@@ -842,10 +974,10 @@ NIL
 0
 
 BUTTON
-49
-168
-176
-201
+54
+252
+181
+285
 spawn-forces
 spawn-forces
 NIL
@@ -936,7 +1068,7 @@ PLOT
 346
 1084
 496
-artilery kills
+artillery kills
 time step
 artilery kills
 0.0
@@ -966,6 +1098,21 @@ false
 "" ""
 PENS
 "default" 1.0 0 -16777216 true "" "plot pva-soldier-kills"
+
+SLIDER
+28
+160
+200
+193
+hill_cover
+hill_cover
+0.0
+1.0
+0.15
+0.01
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?

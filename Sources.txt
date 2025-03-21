@@ -1,0 +1,3 @@
+Sources:
+
+Tobler's function: https://escholarship.org/content/qt05r820mz/qt05r820mz.pdf
