@@ -296,7 +296,7 @@ to spawn-forces
 
   ; SPAWN CHINESE (PVA) FIRST
   let cluster-radius-pva 20 ;; Controls spread of each cluster
-  let cluster-size-pva 18 * 4  ;; initial-pva-troops / num clusters
+  let cluster-size-pva 18 * 4  ;; should be initial-pva-troops / 11
   let offset (cluster-radius-pva / 2)
 
   let global-max-patch max-one-of patches [elevation-value]
@@ -405,7 +405,7 @@ to spawn-forces
 
   ; SPAWN UN FORCES
   let cluster-radius-un 15 ;; Controls spread of each cluster
-  let cluster-size-un 30 ;; initial-un-troops (2 PPCLI D Company)
+  let cluster-size-un initial-un-troops ;; initial-un-troops (2 PPCLI D Company)
 
   ; CREATE UN WEAPONRY (SCALE QUANTITY BASED ON HILL STEEPNESS)
   ; Logistic growth (scaling) parameters
@@ -682,6 +682,9 @@ to go
 
       ; Shoot
       un-turtle-shoot-at-pva-turtle energy-multiplier
+
+      ; Close quarters combat: throw grenades or bayonet rush
+       perform-grenade-bayonet energy-multiplier
     ]
   ]
 
@@ -1103,6 +1106,25 @@ end
 
 
 
+; ########################################################################################################################################
+;                                                             Close Quarters Combat: Grenades & Bayonet
+; ########################################################################################################################################
+to perform-grenade-bayonet [energy-multiplier]
+  let close-range 0  ;; We'll say grenade/bayonet is effective when they're in the same patch
+
+  ;; Find all nearby turtles within the close-range threshold
+  let nearby-turtles turtles in-radius close-range
+
+  ask nearby-turtles [
+    if color = black [  ;; If enemy is a PVA soldier
+      let prob random-float 1.0
+      if prob < 0.9 * energy-multiplier [  ;; high chance PVA soldier dies (lower accounting for energy)
+        set un-soldier-kills un-soldier-kills + 1
+        die
+      ]
+    ]
+  ]
+end
 
 
 
@@ -1194,7 +1216,7 @@ hill_multiplier
 hill_multiplier
 0.01
 1.25
-1.0
+0.13
 0.01
 1
 NIL
