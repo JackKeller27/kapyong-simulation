@@ -17,6 +17,8 @@ globals [
   patch-lat-dim patch-lon-dim
 
   ; Turtle params
+  initial-pva-troops
+  initial-un-troops
   max-energy
 
   ; Custom colors
@@ -26,14 +28,10 @@ globals [
   light-brown
   dark-brown
 
-  ; Night colors:
-  light-blue
-  dark-blue
-  gray-blue
-  ; dark-brown already declared
-  near-black
+  night?
 
-  reset-timers
+  reset-artillery-timers
+  reset-mortar-timers
 
   un-soldier-kills
   un-artilerly-kills
@@ -221,6 +219,8 @@ to setup
 ;  set num-patches-y max-pycor * 2 + 1 ; + 1 accounts for patch 00
 
   ; Set turtle params
+  set initial-pva-troops 2000
+  set initial-un-troops 100
   set max-energy 100
 
   ; Set custom colors
@@ -230,11 +230,7 @@ to setup
   set light-brown 35
   set dark-brown 32
 
-  ; Night colors:
-  set light-blue 94
-  set dark-blue 104
-  set gray-blue 93
-  set near-black 1
+  set night? True
 
   ; Meters per patch
   set meters-per-patch 9.03
@@ -300,7 +296,7 @@ to spawn-forces
 
   ; SPAWN CHINESE (PVA) FIRST
   let cluster-radius-pva 20 ;; Controls spread of each cluster
-  let cluster-size-pva 18 * 4  ;; # 182 per clump (2,002 total)
+  let cluster-size-pva 18 * 4  ;; initial-pva-troops / num clusters
   let offset (cluster-radius-pva / 2)
 
   let global-max-patch max-one-of patches [elevation-value]
@@ -409,19 +405,7 @@ to spawn-forces
 
   ; SPAWN UN FORCES
   let cluster-radius-un 15 ;; Controls spread of each cluster
-  let cluster-size-un 10 ;; 100 (2 PPCLI D Company)
-
-  create-turtles cluster-size-un [
-    setxy (max-x + random-float cluster-radius-un - cluster-radius-un / 2)
-          (max-y + random-float cluster-radius-un - cluster-radius-un / 2)
-    set shape "person"
-    set color white  ;; Color different for visibility (optional)
-    set last-shot-time 0
-    set energy 100 ; max energy
-    set resting? false
-
-    pen-down
-  ]
+  let cluster-size-un 30 ;; initial-un-troops (2 PPCLI D Company)
 
   ; CREATE UN WEAPONRY (SCALE QUANTITY BASED ON HILL STEEPNESS)
   ; Logistic growth (scaling) parameters
@@ -456,6 +440,18 @@ to spawn-forces
     pen-down
   ]
 
+  ; Troops
+  create-turtles (cluster-size-un - num_machguns * 3 - num_morts * 3) [ ; 3 troops per machine gun, 3 per mortar
+    setxy (max-x + random-float cluster-radius-un - cluster-radius-un / 2)
+          (max-y + random-float cluster-radius-un - cluster-radius-un / 2)
+    set shape "person"
+    set color white  ;; Color different for visibility (optional)
+    set last-shot-time 0
+    set energy 100 ; max energy
+    set resting? false
+
+    pen-down
+  ]
 end
 
 to color-patches-with-elevation
@@ -468,20 +464,23 @@ to color-patches-with-elevation
       ; Green -> Brown scale
       let norm-elevation ((elevation-value - min-elevation) / (max-elevation - min-elevation)) / hill_multiplier ; normalize elevation between [0, 1]
 
-      ; Assign color based on thresholded ranges
-      ; DAY COLORS
-      if norm-elevation < 0.1 [ set pcolor light-green ]  ; Flat grass
-      if norm-elevation >= 0.1 and norm-elevation < 0.4 [ set pcolor dark-green ]  ; Light hills
-      if norm-elevation >= 0.4 and norm-elevation < 0.6 [ set pcolor brownish-green ]  ; Medium terrain
-      if norm-elevation >= 0.6 and norm-elevation < 0.8 [ set pcolor light-brown ]  ;; Steeper terrain
-      if norm-elevation >= 0.8 [ set pcolor dark-brown ]  ;; Very steep terrain/rocky cliffs
-
-;      ; NIGHT COLORS
-;      if norm-elevation < 0.1 [ set pcolor light-blue ]  ; Flat grass
-;      if norm-elevation >= 0.1 and norm-elevation < 0.4 [ set pcolor dark-blue ]  ; Light hills
-;      if norm-elevation >= 0.4 and norm-elevation < 0.6 [ set pcolor gray-blue ]  ; Medium terrain
-;      if norm-elevation >= 0.6 and norm-elevation < 0.8 [ set pcolor dark-brown ]  ;; Steeper terrain
-;      if norm-elevation >= 0.8 [ set pcolor near-black ]  ;; Very steep terrain/rocky cliffs
+      ifelse night? [
+        ; NIGHT COLORS
+        if norm-elevation < 0.1 [ set pcolor 75.4 ]  ; Flat grass
+        if norm-elevation >= 0.1 and norm-elevation < 0.4 [ set pcolor 83.5 ]  ; Light hills
+        if norm-elevation >= 0.4 and norm-elevation < 0.6 [ set pcolor 103.5 ]  ; Medium terrain
+        if norm-elevation >= 0.6 and norm-elevation < 0.8 [ set pcolor 33 ]  ;; Steeper terrain
+        if norm-elevation >= 0.8 [ set pcolor dark-brown ]  ;; Very steep terrain/rocky cliffs
+      ]
+      [
+        ; Assign color based on thresholded ranges
+        ; DAY COLORS
+        if norm-elevation < 0.1 [ set pcolor light-green ]  ; Flat grass
+        if norm-elevation >= 0.1 and norm-elevation < 0.4 [ set pcolor dark-green ]  ; Light hills
+        if norm-elevation >= 0.4 and norm-elevation < 0.6 [ set pcolor brownish-green ]  ; Medium terrain
+        if norm-elevation >= 0.6 and norm-elevation < 0.8 [ set pcolor light-brown ]  ;; Steeper terrain
+        if norm-elevation >= 0.8 [ set pcolor dark-brown ]  ;; Very steep terrain/rocky cliffs
+      ]
     ]
 
     ; Set patches with no elevation data to grey
@@ -640,18 +639,36 @@ end
 
 
 to go
-  reset-colors
+  reset-artillery-colors
+  reset-mortar-colors
 
   ;; STEPS PER TICK
-  ;; 1. Perform artillery strike
+  ;; 1. Perform artillery strikes
   ;; 2. Agents shoot
   ;; 3. Weapons shoot
   ;; 4. Agents (PVA) move
+  ;; 5. Check end conditions
 
-
-  if ticks mod 10 = 0 [  ; Conduct a strike every 50 ticks as an example
+  ; Artillery strike
+  if ticks mod 12 = 0 [  ; Conduct a strike every 12 ticks (once per minute)
     perform-artillery-strike
   ]
+
+  ; Mortar fire
+  if ticks mod 12 = 0 [
+    ask turtles with [shape = "mortar"] [
+      perform-mortar-strike
+    ]
+  ]
+
+  ; Machine gun fire (every tick)
+  ask turtles with [shape = "machine-gun"] [
+    fire-machine-gun
+  ]
+
+  ; Artillery barrage
+  ; Only fires if UN troops begin to get overrun
+  perform-artillery-barrage
 
   ; UN turtles
   ask turtles with [color = white] [
@@ -775,15 +792,34 @@ to go
           fd movement-speed * energy-multiplier
         ]
       ] [
-        stop
+        ; Do nothing
+        ; stop
       ]
     ]
   ]
 
   fade-rings
+  check-end-conditions
   tick
 end
 
+to check-end-conditions
+  let initial-pva-count initial-pva-troops
+  let remaining-pva count turtles with [color = black]
+  let remaining-un count turtles with [color = white]
+
+  set initial-pva-count 18 * 4
+
+  if (remaining-pva <= 0.1 * initial-pva-count) [
+    user-message "PVA has surrendered! The UN wins!"
+    stop
+  ]
+
+  if (remaining-un = 0) [
+    user-message "All UN troops have been eliminated! The PVA wins!"
+    stop
+  ]
+end
 
 
 ; ########################################################################################################################################
@@ -795,7 +831,7 @@ to-report deplete-energy [soldier]
   let slope [gradient-value] of soldier
   let normalized-slope (slope / max-gradient)  ;; Between [0,1]
   let k 1.0                       ;; Energy loss per slope unit (movement)
-  let m 0.5                       ;; Base energy loss per tick (shooting)
+  let m 0.01                       ;; Base energy loss per tick (shooting)
 
   ;; Compute new energy level
   ask soldier [
@@ -819,6 +855,7 @@ end
 
 
 to rest
+  ; Show yellow ring while resting
 ;  pulse-ring
 
   let r 2  ;; Recovery rate per tick
@@ -848,23 +885,40 @@ to fade-rings
   ]
 end
 
+
+
 ; ########################################################################################################################################
 ;                                                             Artillery Method
 ; ########################################################################################################################################
 
 
-
+; GENERAL ARTILLERY STRIKE
 to perform-artillery-strike
-  let target max-one-of patches [count turtles-here with [color = black]]
+;  let target max-one-of patches [count turtles-here with [color = black]]
+
+  let target nobody
+
+  while [target = nobody or [distancexy 0 0] of target <= 30] [
+    ;; Select a random x within the left half of the world (pxcor-min to 0)
+    let target-x random (abs min-pxcor) + min-pxcor  ;; Ensures it's within pxcor-min to 0
+
+    ;; Select a random y anywhere in the world (pycor-min to pycor-max)
+    let target-y random (max-pycor - min-pycor + 1) + min-pycor
+
+    ;; Get the patch at (target-x, target-y)
+    set target patch target-x target-y
+
+    ;; If it's in the radius-15 exclusion zone, loop again
+  ]
 
   ask target [
 
-    let immediate-death-zone turtles-here
-    let near-zone turtles in-radius 2
+    let immediate-death-zone turtles-here with [color = black]
+    let near-zone turtles in-radius 2 with [color = black]
 
     let sure-deaths 0
     ask immediate-death-zone [
-      if random-float 1.0 < 0.05 [  ; 90% chance to die
+      if random-float 1.0 < 0.9 [  ; 90% chance to die
         set un-artilerly-kills un-artilerly-kills + 1
         die
 
@@ -875,8 +929,9 @@ to perform-artillery-strike
     ; Calculate and execute probabilistic effects in the surrounding area TODO
     let near-deaths 0
       ask near-zone [
-        if random-float 1.0 < 0.1 [  ; 30% chance to die
+        if random-float 1.0 < 0.1 [  ; low chance of dying
           set near-deaths near-deaths + 1
+          set un-artilerly-kills un-artilerly-kills + 1
           die
         ]
       ]
@@ -889,23 +944,164 @@ to perform-artillery-strike
       set pcolor red
     ]
 
-    set reset-timers 5
+    set reset-artillery-timers 5
 
   ]
 
 end
 
+; ARTILLERY BARRAGE
+to perform-artillery-barrage
+  ;; Get the patches within a radius of 15 from the center
+  let center-patches patches with [distancexy 0 0 <= 15]
 
-to reset-colors
-  if reset-timers > 0 [
-    set reset-timers reset-timers - 1
-    if reset-timers = 0 [
+  ;; Count total troops and PVA troops in the center area
+  let total-troops count turtles with [member? patch-here center-patches]
+  let pva-troops count turtles with [color = black and member? patch-here center-patches]
+
+  ;; Check if PVA troops make up ≥ 50%
+  if (total-troops > 0 and (pva-troops / total-troops) >= 0.5) [
+    ;; Call artillery strike on each center patch
+    foreach center-patches [target ->
+      ask target [
+        let pva-zone turtles-here with [color = black]  ;; PVA troops
+        let un-zone turtles-here with [color = white]    ;; UN troops
+
+        ;; 90% chance to die for PVA
+        ask pva-zone [
+          if random-float 1.0 < 0.9 [
+            set un-artilerly-kills un-artilerly-kills + 1
+            die
+          ]
+        ]
+
+        ;; 0.1% chance to die for UN
+        ask un-zone [
+          if random-float 1.0 < 0.001 [
+            die
+          ]
+        ]
+
+        ;; Visual effect: Change patch color to red
+        set pcolor red
+      ]
+    ]
+
+    ;; Reset the red effect after 5 ticks
+    set reset-artillery-timers 5
+  ]
+end
+
+
+to reset-artillery-colors
+  if reset-artillery-timers > 0 [
+    set reset-artillery-timers reset-artillery-timers - 1
+    if reset-artillery-timers = 0 [
       ask patches with [pcolor = red] [  ; Only reset patches that are currently red
         set pcolor orig-color  ; Restore the original color
       ]
     ]
   ]
 end
+
+
+
+; ########################################################################################################################################
+;                                                             Mortars/Machine Guns Method
+; ########################################################################################################################################
+
+
+
+; M2 60mm mortars: https://en.wikipedia.org/wiki/M2_mortar#:~:text=The%20M2%20mortar%20is%20a,War%20for%20light%20infantry%20support.
+; 18 rounds per minute (1 min = 12 ticks)
+; range (meters): [180, 1844]
+to perform-mortar-strike
+  let target nobody
+
+  ; TODO this needs to be fixed
+  ;; Define the minimum and maximum range in patches
+  let min-range 2  ;; Corresponding to 180 meters (88 m. per patch)
+  let max-range 21  ;; Corresponding to 1844 meters
+
+
+  ;; Find the patch with the highest concentration of PVA troops within range of the firing mortar
+  set target max-one-of patches in-radius max-range [count turtles-here with [color = black]]
+
+  ;; Make sure target isn't too close
+  if (abs [pxcor] of target <= min-range) and (abs [pycor] of target <= min-range) [
+    set target nobody
+  ]
+
+  if target != nobody [
+    ;; Perform the mortar strike on the chosen patch
+    ask target [
+      ;; Define the impact zones (immediate-death-zone and near-zone)
+      let immediate-death-zone turtles-here with [color = black]
+      let near-zone turtles in-radius 2 with [color = black]
+
+      ;; Immediate death chance for black troops
+      ask immediate-death-zone [
+        if random-float 1.0 < 0.3 [
+          set un-soldier-kills un-soldier-kills + 1
+          die
+        ]
+      ]
+
+      ;; Mortar effect on nearby black troops
+      let near-deaths 0
+      ask near-zone [
+        if random-float 1.0 < 0.05 [
+          set near-deaths near-deaths + 1
+          set un-soldier-kills un-soldier-kills + 1
+          die
+        ]
+      ]
+
+      ;; Visual effect: Change the color of affected patches
+      ask patches in-radius 2 [
+        set orig-color pcolor
+        set pcolor yellow
+      ]
+
+      ;; Reset the timers for the yellow effect
+      set reset-mortar-timers 5
+    ]
+  ]
+end
+
+; Vickers machine guns: https://en.wikipedia.org/wiki/Vickers_machine_gun
+; 450 rounds per min (per 12 ticks)
+; 2000 meter range (22 patches)
+to fire-machine-gun
+  let shooting-range 22  ;; Maximum shooting distance
+  let num-shots 38  ;; Number of shots per tick
+
+  ;; Fire num-shots times per tick
+  repeat num-shots [
+    let target min-one-of turtles with [color = black] [distance self]
+    if target != nobody and [distance target] of self <= shooting-range [
+      let prob compute-hit-probability-for-un self target 0.5 22 hill_cover ;; params: shooter, target, bullet_effectiveness, bullet_range, cover_factor
+
+      if random-float 1 < prob and prob > 0.001 [
+        set un-soldier-kills un-soldier-kills + 1
+        ask target [ die ] ;; Kill black agent if hit
+      ]
+    ]
+  ]
+end
+
+to reset-mortar-colors
+  if reset-mortar-timers > 0 [
+    set reset-mortar-timers reset-mortar-timers - 1
+    if reset-mortar-timers = 0 [
+      ask patches with [pcolor = yellow] [  ; Only reset patches that are currently yellow
+        set pcolor orig-color  ; Restore the original color
+      ]
+    ]
+  ]
+end
+
+
 
 
 
