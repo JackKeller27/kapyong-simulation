@@ -296,7 +296,7 @@ to spawn-forces
 
   ; SPAWN CHINESE (PVA) FIRST
   let cluster-radius-pva 20 ;; Controls spread of each cluster
-  let cluster-size-pva 18 * 4  ;; sinitial-pva-troops / num clusters
+  let cluster-size-pva initial-pva-troops / 3 / 5  ;; should be initial-pva-troops / 11
   let offset (cluster-radius-pva / 2)
 
   let global-max-patch max-one-of patches [elevation-value]
@@ -530,16 +530,16 @@ to un-turtle-shoot-at-pva-turtle [energy-multiplier]
   let shooting-range 100  ;; Maximum shooting distance
   let fire-rate calculate-fire-rate 4
 
-  if (ticks - last-shot-time >=  fire-rate - random (5)) [
+  if (ticks - last-shot-time >=  fire-rate * 5 - random (5)) [
     set last-shot-time ticks
     let target min-one-of turtles with [color = black] [distance self]
     if target != nobody and [distance target] of self <= shooting-range [
-      let prob compute-hit-probability-for-un self target 1 25 hill_cover ;; params: shooter, target, bullet_effectiveness, bullet_range, cover_factor
+      let prob compute-hit-probability-for-un self target 3 15 hill_cover ;; params: shooter, target, bullet_effectiveness, bullet_range, cover_factor
 
       ;; Account for energy level
-      set prob (prob * energy-multiplier)
-
-      if random-float 1 < prob and prob > 0.2[
+      ;; set prob (prob * energy-multiplier)
+      ;; print energy-multiplier
+      if random-float 1 < prob and prob > 0.06[
         set un-soldier-kills un-soldier-kills + 1
         ask target [ die ] ;; Kill black agent if hit
       ]
@@ -554,14 +554,13 @@ to pva-turtle-shoot-at-un-turtle [energy-multiplier]
   let target min-one-of turtles with [color = white] [distance self]
 
   if target != nobody and [distance target] of self <= shooting-range [
-    let prob compute-hit-probability-for-pva self target 2 10 ;; params: shooter, target, bullet_effectiveness, bullet_range
+    let prob compute-hit-probability-for-pva self target 1 7 ;; params: shooter, target, bullet_effectiveness, bullet_range
 
     ;; Account for energy level
     set prob (prob * energy-multiplier)
 
     if random-float 1 < prob and prob > 0.001 [
       ;; print "white died"
-      print prob
       set pva-soldier-kills pva-soldier-kills + 1
       ask target [ die ]  ;; Kill white agent if hit
     ]
@@ -610,7 +609,7 @@ to-report compute-hit-probability-for-un [shooter target bullet_effectiveness bu
 
 
   ; Multiply entire prob by cover factor
-  set hit-probability hit-probability * (1 - cover_factor)
+  set hit-probability hit-probability
 
   report hit-probability
 end
@@ -650,20 +649,22 @@ to go
   ;; 5. Check end conditions
 
   ; Artillery strike
-  if ticks mod 12 = 0 [  ; Conduct a strike every 12 ticks (once per minute)
+  if ticks mod 6 * 5 = 0 [  ; Conduct a strike every 12 ticks (once per minute)
     perform-artillery-strike
   ]
 
   ; Mortar fire
-  if ticks mod 12 = 0 [
+  if ticks mod 12 * 5 = 0 [
     ask turtles with [shape = "mortar"] [
       perform-mortar-strike
     ]
   ]
 
   ; Machine gun fire (every tick)
-  ask turtles with [shape = "machine-gun"] [
-    fire-machine-gun
+  if ticks mod  5 = 0 [
+    ask turtles with [shape = "machine-gun"] [
+      fire-machine-gun
+    ]
   ]
 
   ; Artillery barrage
@@ -681,7 +682,9 @@ to go
       let energy-multiplier deplete-energy self
 
       ; Shoot
-      un-turtle-shoot-at-pva-turtle energy-multiplier
+      if ticks mod 5 = 0 [
+        un-turtle-shoot-at-pva-turtle energy-multiplier
+      ]
 
       ; Close quarters combat: throw grenades or bayonet rush
        perform-grenade-bayonet energy-multiplier
@@ -807,11 +810,11 @@ to go
 end
 
 to check-end-conditions
-  let initial-pva-count initial-pva-troops
+  let initial-pva-count initial-pva-troops / 5
   let remaining-pva count turtles with [color = black]
   let remaining-un count turtles with [color = white]
 
-  set initial-pva-count 18 * 4
+  ;; set initial-pva-count 18 * 4
 
   if (remaining-pva <= 0.1 * initial-pva-count) [
     user-message "PVA has surrendered! The UN wins!"
@@ -833,8 +836,8 @@ end
 to-report deplete-energy [soldier]
   let slope [gradient-value] of soldier
   let normalized-slope (slope / max-gradient)  ;; Between [0,1]
-  let k 1.0                       ;; Energy loss per slope unit (movement)
-  let m 0.01                       ;; Base energy loss per tick (shooting)
+  let k 2.0                       ;; Energy loss per slope unit (movement)
+  let m 0.015                       ;; Base energy loss per tick (shooting)
 
   ;; Compute new energy level
   ask soldier [
@@ -897,31 +900,22 @@ end
 
 ; GENERAL ARTILLERY STRIKE
 to perform-artillery-strike
-;  let target max-one-of patches [count turtles-here with [color = black]]
+  let target max-one-of patches [count turtles-here with [color = black]]
+  let noisy-x ( [pxcor] of target ) + random-normal  1
+  let noisy-y ( [pycor] of target ) + random-normal 3 1
+  let noisy-patch patch round noisy-x round noisy-y
 
-  let target nobody
+  ask noisy-patch [
 
-  while [target = nobody or [distancexy 0 0] of target <= 30] [
-    ;; Select a random x within the left half of the world (pxcor-min to 0)
-    let target-x random (abs min-pxcor) + min-pxcor  ;; Ensures it's within pxcor-min to 0
 
-    ;; Select a random y anywhere in the world (pycor-min to pycor-max)
-    let target-y random (max-pycor - min-pycor + 1) + min-pycor
 
-    ;; Get the patch at (target-x, target-y)
-    set target patch target-x target-y
 
-    ;; If it's in the radius-15 exclusion zone, loop again
-  ]
-
-  ask target [
-
-    let immediate-death-zone turtles-here with [color = black]
-    let near-zone turtles in-radius 2 with [color = black]
+    let immediate-death-zone turtles-here
+    let near-zone turtles in-radius 2
 
     let sure-deaths 0
     ask immediate-death-zone [
-      if random-float 1.0 < 0.9 [  ; 90% chance to die
+      if random-float 1.0 < 0.5 [  ; 90% chance to die
         set un-artilerly-kills un-artilerly-kills + 1
         die
 
@@ -932,9 +926,8 @@ to perform-artillery-strike
     ; Calculate and execute probabilistic effects in the surrounding area TODO
     let near-deaths 0
       ask near-zone [
-        if random-float 1.0 < 0.1 [  ; low chance of dying
+        if random-float 1.0 < 0.1 [  ; 30% chance to die
           set near-deaths near-deaths + 1
-          set un-artilerly-kills un-artilerly-kills + 1
           die
         ]
       ]
@@ -947,7 +940,7 @@ to perform-artillery-strike
       set pcolor red
     ]
 
-    set reset-artillery-timers 5
+    set reset-artillery-timers 3
 
   ]
 
@@ -991,7 +984,7 @@ to perform-artillery-barrage
     ]
 
     ;; Reset the red effect after 5 ticks
-    set reset-artillery-timers 5
+    set reset-artillery-timers 3
   ]
 end
 
@@ -1036,38 +1029,44 @@ to perform-mortar-strike
 
   if target != nobody [
     ;; Perform the mortar strike on the chosen patch
+    let nums 0
     ask target [
-      ;; Define the impact zones (immediate-death-zone and near-zone)
-      let immediate-death-zone turtles-here with [color = black]
-      let near-zone turtles in-radius 2 with [color = black]
+      set nums count turtles in-radius 2 with [color = black]
+    ]
+    if nums > 0 [
+      ask target [
+        ;; Define the impact zones (immediate-death-zone and near-zone)
+        let immediate-death-zone turtles-here with [color = black]
+        let near-zone turtles in-radius 2 with [color = black]
 
-      ;; Immediate death chance for black troops
-      ask immediate-death-zone [
-        if random-float 1.0 < 0.3 [
-          set un-soldier-kills un-soldier-kills + 1
-          die
+        ;; Immediate death chance for black troops
+        ask immediate-death-zone [
+          if random-float 1.0 < 0.3 [
+            set un-soldier-kills un-soldier-kills + 1
+            die
+          ]
         ]
-      ]
 
-      ;; Mortar effect on nearby black troops
-      let near-deaths 0
-      ask near-zone [
-        if random-float 1.0 < 0.05 [
-          set near-deaths near-deaths + 1
-          set un-soldier-kills un-soldier-kills + 1
-          die
+        ;; Mortar effect on nearby black troops
+        let near-deaths 0
+        ask near-zone [
+          if random-float 1.0 < 0.05 [
+            set near-deaths near-deaths + 1
+            set un-soldier-kills un-soldier-kills + 1
+            die
+          ]
         ]
-      ]
 
-      ; TODO yellow patches aren't resetting
-      ;; Visual effect: Change the color of affected patches
-      ask patches in-radius 2 [
-        set orig-color pcolor
-        set pcolor yellow
-      ]
+        ; TODO yellow patches aren't resetting
+        ;; Visual effect: Change the color of affected patches
+        ask patches in-radius 2 [
+          set orig-color pcolor
+          set pcolor yellow
+        ]
 
-      ;; Reset the timers for the yellow effect
-      set reset-mortar-timers 5
+        ;; Reset the timers for the yellow effect
+        set reset-mortar-timers 5
+      ]
     ]
   ]
 end
@@ -1127,7 +1126,6 @@ to perform-grenade-bayonet [energy-multiplier]
 end
 
 
-
 @#$#@#$#@
 GRAPHICS-WINDOW
 253
@@ -1150,8 +1148,8 @@ GRAPHICS-WINDOW
 100
 -100
 100
-1
-1
+0
+0
 1
 ticks
 30.0
@@ -1216,7 +1214,7 @@ hill_multiplier
 hill_multiplier
 0.01
 1.25
-0.13
+0.7
 0.01
 1
 NIL
@@ -1325,7 +1323,7 @@ hill_cover
 hill_cover
 0.0
 1.0
-0.15
+0.05
 0.01
 1
 NIL
