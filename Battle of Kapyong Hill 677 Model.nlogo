@@ -1,13 +1,13 @@
 extensions [csv]
-turtles-own [ movement-speed last-shot-time]
 
 globals [
   ; CSV data
   gradient-data
   elevation-data
 
-  ; Patch data
-   meters-per-patch
+  ; Patch params
+  meters-per-patch
+  global-max-patch
   num-patches-x
   num-patches-y
   lat-min lat-max lon-min lon-max
@@ -17,6 +17,12 @@ globals [
   lat-range lon-range
   patch-lat-dim patch-lon-dim
 
+  ; Turtle params
+  initial-pva-troops
+  initial-un-troops
+  troops-per-agent
+  max-energy
+
   ; Custom colors
   dark-green
   light-green
@@ -24,12 +30,36 @@ globals [
   light-brown
   dark-brown
 
-  reset-timers
+  night?
 
+  num_machguns
+  num_morts
+
+  reset-artillery-timers
+  reset-mortar-timers
+  last-barrage
+
+  un-total-kills
+  un-soldier-kills
+  un-mortar-kills
+  un-machgun-kills
+  un-artilerly-kills
+  pva-soldier-kills
+
+  last-un-kills
+  last-pva-kills
+  un-kill-rate
+  pva-kill-rate
+
+  total-time
 ]
 
-; SETUP
+; Patch and turtle variables
 patches-own [ gradient-value elevation-value orig-color]
+turtles-own [movement-speed last-shot-time energy resting?]
+
+; Custom breeds
+breed [rings ring]  ;; Pulsing effect while resting
 
 
 ; ########################################################################################################################################
@@ -204,6 +234,13 @@ to setup
 ;  set num-patches-x max-pxcor * 2 + 1 ; + 1 accounts for patch 00
 ;  set num-patches-y max-pycor * 2 + 1 ; + 1 accounts for patch 00
 
+  ; Set turtle params
+  set initial-pva-troops 2000
+  set initial-un-troops 100
+  set troops-per-agent 5
+  set max-energy 100
+  set last-barrage 0
+
   ; Set custom colors
   set light-green 66
   set dark-green 64
@@ -211,8 +248,10 @@ to setup
   set light-brown 35
   set dark-brown 32
 
+  set night? True
+
   ; Meters per patch
-  set meters-per-patch 9.03
+  set meters-per-patch 18.15 ; 9.03
 
   ; Initialize min and max gradient values
   set min-gradient 999999
@@ -232,6 +271,13 @@ to setup
   ;  print "lat/lon range:"
   ;  print lat-range
   ;  print lon-range
+
+  set un-total-kills 0
+  set un-mortar-kills 0
+  set un-machgun-kills 0
+  set un-soldier-kills 0
+  set un-artilerly-kills 0
+  set pva-soldier-kills 0
 
   ; Import patch data from pre-saved file
   carefully [import-patch-data] [print "Environment must be 201x201 patches"]
@@ -270,30 +316,30 @@ to spawn-forces
 
   ; SPAWN CHINESE (PVA) FIRST
   let cluster-radius-pva 20 ;; Controls spread of each cluster
-  let cluster-size-pva 181  ;; # per clump (2,002 total)
+  let cluster-size-pva initial-pva-troops / 9 / troops-per-agent
   let offset (cluster-radius-pva / 2)
 
-  let global-max-patch max-one-of patches [elevation-value]
+  set global-max-patch max-one-of patches [elevation-value]
   let max-x [pxcor] of global-max-patch ; steepest point
   let max-y [pycor] of global-max-patch ; steepest point
 
   ;; Clump 1: Top Left
-  create-turtles cluster-size-pva [
-    setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
-          (max-pycor - offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
-    set shape "person"
-    set color black
-    ;;pen-down
-  ]
+   create-turtles cluster-size-pva [
+     setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
+           (max-pycor - offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
+     set shape "person"
+     set color black
+;    pen-down
+   ]
 
   ;; Clump 2: Top Middle
-  create-turtles cluster-size-pva [
-    setxy (0 + random-float cluster-radius-pva - cluster-radius-pva / 2)
-          (max-pycor - offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
-    set shape "person"
-    set color black
-    ;;pen-down
-  ]
+   create-turtles cluster-size-pva [
+     setxy (0 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+           (max-pycor - offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
+     set shape "person"
+     set color black
+;    pen-down
+   ]
 
   ;; Clump 3: Bottom Left
   create-turtles cluster-size-pva [
@@ -305,13 +351,13 @@ to spawn-forces
   ]
 
   ;; Clump 4: Middle Left
-  create-turtles cluster-size-pva [
-    setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
-          (0 + random-float cluster-radius-pva - cluster-radius-pva / 2)
-    set shape "person"
-    set color black
-    ;;pen-down
-  ]
+   create-turtles cluster-size-pva [
+     setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
+           (0 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+     set shape "person"
+     set color black
+     ;;pen-down
+   ]
 
   ;; Clump 5: Between Top Left and Top Middle
   create-turtles cluster-size-pva [
@@ -322,41 +368,41 @@ to spawn-forces
     ;;pen-down
   ]
 
-  ;; Clump 6: Between Middle Left and Top Middle
-  create-turtles cluster-size-pva [
-    setxy ((min-pxcor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
-    ((max-pycor - offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
-    set shape "person"
-    set color black
-    ;;pen-down
-  ]
+;  ;; Clump 6: Between Middle Left and Top Middle
+;   create-turtles cluster-size-pva [
+;     setxy ((min-pxcor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+;     ((max-pycor - offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+;     set shape "person"
+;     set color black
+;    ;;pen-down
+;   ]
 
   ;; Clump 7: Under Top Left
-  create-turtles cluster-size-pva [
-    setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
-    ((max-pycor - offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
-    set shape "person"
-    set color black
+   create-turtles cluster-size-pva [
+     setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
+     ((max-pycor - offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+     set shape "person"
+     set color black
     ;;pen-down
-  ]
+   ]
 
-  ;; Clump 8: Between Bottom Left and Middle Left
-  create-turtles cluster-size-pva [
-    setxy ((min-pxcor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
-    ((min-pycor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
-    set shape "person"
-    set color black
-    ;;pen-down
-  ]
+;  ;; Clump 8: Between Bottom Left and Middle Left
+;   create-turtles cluster-size-pva [
+;     setxy ((min-pxcor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+;     ((min-pycor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+;     set shape "person"
+;     set color black
+;    ;;pen-down
+;   ]
 
   ;; Clump 9: Between Middle Left and Bottom Middle
-  create-turtles cluster-size-pva [
-    setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
-    ((min-pycor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
-    set shape "person"
-    set color black
+   create-turtles cluster-size-pva [
+     setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
+     ((min-pycor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+     set shape "person"
+     set color black
     ;;pen-down
-  ]
+   ]
 
   ;; Clump 10: Between Bottom Left and Bottom Middle
   create-turtles cluster-size-pva [
@@ -368,28 +414,18 @@ to spawn-forces
   ]
 
   ;; Clump 11: Bottom Middle
-  create-turtles cluster-size-pva [
-    setxy (0 + random-float cluster-radius-pva - cluster-radius-pva / 2)
-    (min-pycor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
-    set shape "person"
-    set color black
+   create-turtles cluster-size-pva [
+     setxy (0 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+     (min-pycor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
+     set shape "person"
+     set color black
     ;;pen-down
-  ]
+   ]
 
 
   ; SPAWN UN FORCES
   let cluster-radius-un 15 ;; Controls spread of each cluster
-  let cluster-size-un 100
-
-  create-turtles cluster-size-un [
-    setxy (max-x + random-float cluster-radius-un - cluster-radius-un / 2)
-          (max-y + random-float cluster-radius-un - cluster-radius-un / 2)
-    set shape "person"
-    set color white  ;; Color different for visibility (optional)
-    set last-shot-time 0
-
-    pen-down
-  ]
+  let cluster-size-un initial-un-troops / troops-per-agent ;; initial-un-troops (2 PPCLI D Company)
 
   ; CREATE UN WEAPONRY (SCALE QUANTITY BASED ON HILL STEEPNESS)
   ; Logistic growth (scaling) parameters
@@ -401,8 +437,8 @@ to spawn-forces
   let k 2.5  ;; Growth rate parameter
   let exp-part exp (- k * ((1 / hill_multiplier) - 1)) ; hill_multiplier is x-axis (want growth to increase as it decreases)
 
-  let num_morts max_morts / (1 + ((max_morts / init_morts) - 1) * exp-part)
-  let num_machguns max_machguns / (1 + ((max_machguns / init_machguns) - 1) * exp-part)
+  set num_morts int(max_morts / (1 + ((max_morts / init_morts) - 1) * exp-part))
+  set num_machguns int(max_machguns / (1 + ((max_machguns / init_machguns) - 1) * exp-part))
 
   ; Machine guns (default 2)
   create-turtles num_machguns [
@@ -424,6 +460,21 @@ to spawn-forces
     pen-down
   ]
 
+  ; Troops
+;  create-turtles (cluster-size-un - num_machguns * (ceiling (3 / troops-per-agent)) - num_morts * ceiling ((3 / troops-per-agent))) [ ; min 3 troops per machine gun, min 3 per mortar
+
+  ; Consistent number of troops each time (regardless of machine gun/mortar crews)
+  create-turtles cluster-size-un [
+    setxy (max-x + random-float cluster-radius-un - cluster-radius-un / 2)
+          (max-y + random-float cluster-radius-un - cluster-radius-un / 2)
+    set shape "person"
+    set color white  ;; Color different for visibility (optional)
+    set last-shot-time 0
+    set energy 100 ; max energy
+    set resting? false
+
+    pen-down
+  ]
 end
 
 to color-patches-with-elevation
@@ -434,14 +485,25 @@ to color-patches-with-elevation
       ; set pcolor scale-color brown plabel min-gradient max-gradient
 
       ; Green -> Brown scale
-      let norm-elevation (elevation-value - min-elevation) / (max-elevation - min-elevation) ; normalize elevation between [0, 1]
+      let norm-elevation ((elevation-value - min-elevation) / (max-elevation - min-elevation)) / hill_multiplier ; normalize elevation between [0, 1]
 
-      ; Assign color based on thresholded ranges
-      if norm-elevation < 0.2 [ set pcolor light-green ]  ; Flat grass
-      if norm-elevation >= 0.2 and norm-elevation < 0.4 [ set pcolor dark-green ]  ; Light hills
-      if norm-elevation >= 0.4 and norm-elevation < 0.6 [ set pcolor brownish-green ]  ; Medium terrain
-      if norm-elevation >= 0.6 and norm-elevation < 0.8 [ set pcolor light-brown ]  ;; Steeper terrain
-      if norm-elevation >= 0.8 [ set pcolor dark-brown ]  ;; Very steep terrain/rocky cliffs
+      ifelse night? [
+        ; NIGHT COLORS
+        if norm-elevation < 0.1 [ set pcolor 75.4 ]  ; Flat grass
+        if norm-elevation >= 0.1 and norm-elevation < 0.4 [ set pcolor 83.5 ]  ; Light hills
+        if norm-elevation >= 0.4 and norm-elevation < 0.6 [ set pcolor 103.5 ]  ; Medium terrain
+        if norm-elevation >= 0.6 and norm-elevation < 0.8 [ set pcolor 33 ]  ;; Steeper terrain
+        if norm-elevation >= 0.8 [ set pcolor dark-brown ]  ;; Very steep terrain/rocky cliffs
+      ]
+      [
+        ; Assign color based on thresholded ranges
+        ; DAY COLORS
+        if norm-elevation < 0.1 [ set pcolor light-green ]  ; Flat grass
+        if norm-elevation >= 0.1 and norm-elevation < 0.4 [ set pcolor dark-green ]  ; Light hills
+        if norm-elevation >= 0.4 and norm-elevation < 0.6 [ set pcolor brownish-green ]  ; Medium terrain
+        if norm-elevation >= 0.6 and norm-elevation < 0.8 [ set pcolor light-brown ]  ;; Steeper terrain
+        if norm-elevation >= 0.8 [ set pcolor dark-brown ]  ;; Very steep terrain/rocky cliffs
+      ]
     ]
 
     ; Set patches with no elevation data to grey
@@ -463,8 +525,8 @@ to color-patches-with-gradient
       let norm-gradient (gradient-value - min-gradient) / (max-gradient - min-gradient) ; normalize gradient between [0, 1]
 
       ; Assign color based on thresholded ranges
-      if norm-gradient < 0.2 [ set pcolor light-green ]  ; Flat grass
-      if norm-gradient >= 0.2 and norm-gradient < 0.4 [ set pcolor dark-green ]  ; Light hills
+      if norm-gradient < 0.1 [ set pcolor light-green ]  ; Flat grass
+      if norm-gradient >= 0.1 and norm-gradient < 0.4 [ set pcolor dark-green ]  ; Light hills
       if norm-gradient >= 0.4 and norm-gradient < 0.6 [ set pcolor brownish-green ]  ; Medium terrain
       if norm-gradient >= 0.6 and norm-gradient < 0.8 [ set pcolor light-brown ]  ;; Steeper terrain
       if norm-gradient >= 0.8 [ set pcolor dark-brown ]  ;; Very steep terrain/rocky cliffs
@@ -487,52 +549,96 @@ end
 ; ########################################################################################################################################
 
 
-to un-turtle-shoot-at-pva-turtle
+to un-turtle-shoot-at-pva-turtle [energy-multiplier]
   let shooting-range 100  ;; Maximum shooting distance
-  let fire-rate calculate-fire-rate 3
-  if (ticks - last-shot-time >=  fire-rate - random (5)) [
+  let effectiveness 1.22 ; lower is worse
+  let fire-rate calculate-fire-rate 4 1 20 ; k min-rate max-rate
+
+  if (ticks - last-shot-time >=  fire-rate * 5 - random (5)) [
     set last-shot-time ticks
     let target min-one-of turtles with [color = black] [distance self]
     if target != nobody and [distance target] of self <= shooting-range [
-      let prob compute-hit-probability self target 3 25
-      if random-float 1 < prob and prob > 0.2 [
-        ask target [ die ]
+      let prob compute-hit-probability-for-un self target effectiveness 30 hill_cover ;; params: shooter, target, bullet_effectiveness, bullet_range, cover_factor
+
+      ;; Account for energy level
+      ;; set prob (prob * energy-multiplier)
+      ;; print energy-multiplier
+      if random-float 1 < prob and prob > 0.001 [
+        set un-soldier-kills un-soldier-kills + 1
+        ask target [ die ] ;; Kill black agent if hit
       ]
     ]
   ]
 end
 
 
-
-to pva-turtle-shoot-at-un-turtle
+to pva-turtle-shoot-at-un-turtle [energy-multiplier]
   let shooting-range 100  ;; Maximum shooting distance
-  let target min-one-of turtles with [color = white] [distance self]
+  let effectiveness 1.1 ; slightly less effective than UN
+  let fire-rate calculate-fire-rate 4 1 35 ; k min-rate max-rate
 
-  if target != nobody and [distance target] of self <= shooting-range [
-    let prob compute-hit-probability self target 1 10
+  if (ticks -  last-shot-time >=  fire-rate * 5 - random (5)) [
+    set last-shot-time ticks
+    let target min-one-of turtles with [color = white] [distance self]
+    if target != nobody and [distance target] of self <= shooting-range [
+      let prob compute-hit-probability-for-pva self target effectiveness 20 ;; params: shooter, target, bullet_effectiveness, bullet_range
 
-    if random-float 1 < prob and prob > 0.2 [
+    ;; Account for energy level
+    set prob (prob * energy-multiplier)
+
+    if random-float 1 < prob and prob > 0.001 [
       ;; print "white died"
+      set pva-soldier-kills pva-soldier-kills + 1
       ask target [ die ]  ;; Kill white agent if hit
+    ]
     ]
   ]
 end
 
 
-; SHOOTING
-to-report compute-hit-probability [shooter target bullet_effectiveness bullet_range]
+; SHOOTING PROBABILITIES
+to-report compute-hit-probability-for-pva [shooter target bullet_effectiveness bullet_range]
   let dist [distance target] of shooter
   let shooter-elevation [elevation-value] of shooter
   let target-elevation [elevation-value] of target
   let grad (target-elevation - shooter-elevation) / (dist * meters-per-patch)
 
-  let theta grad
+  let theta (- grad) ; invert so that shooting UPHILL is a DISADVANTAGE
   let s (tanh theta)
 
   let r-theta (4 - ((theta * 100) / 15)) ^ 2
   let R bullet_effectiveness
   let D bullet_range
-  let hit-probability (exp (-1 * R / r-theta)) * exp ((-1 * dist) / D)
+  let hit-probability-at-25 (exp (-1 * R / r-theta)) * exp ((-1 * dist) / D)
+
+  let hit-probability 0
+  ifelse dist <= bullet_range [
+    set hit-probability 1 - (1 - hit-probability-at-25) * exp (-5 * (bullet_range - dist) / bullet_range)
+  ] [
+    set hit-probability (1 - exp (-1 * R / r-theta)) * exp ((-1 * dist) / D)
+  ]
+
+  report hit-probability
+end
+
+to-report compute-hit-probability-for-un [shooter target bullet_effectiveness bullet_range cover_factor]
+  let dist [distance target] of shooter
+  let shooter-elevation [elevation-value] of shooter
+  let target-elevation [elevation-value] of target
+  let grad (target-elevation - shooter-elevation) / (dist * meters-per-patch)
+
+  let theta (- grad) ; invert so that shooting DOWNHILL is an ADVANTAGE
+  let s (tanh theta)
+
+  let r-theta (4 - ((theta * 100) / 15)) ^ 2
+  let R bullet_effectiveness
+  let D bullet_range
+  let hit-probability (1 - exp (-1 * R / r-theta)) * exp ((-1 * dist) / D) / 2
+
+
+  ; Multiply entire prob by cover factor
+  set hit-probability hit-probability * (1 - 0.5 * cover_factor)
+
   report hit-probability
 end
 
@@ -542,189 +648,413 @@ to-report tanh [x]
 end
 
 
-to-report calculate-fire-rate [k]
+to-report calculate-fire-rate [k min_rate max_rate]
   let min_hill 0.01
   let max_hill 1.25
-  let max_rate 15
-  let min_rate 1
 
   let normalized_hill (hill_multiplier - min_hill) / (max_hill - min_hill)
-  let fire_rate min_rate + (max_rate - min_rate) * (normalized_hill ^ k)
+  let fire_rate min_rate + (max_rate - min_rate) * (1 - normalized_hill ^ k)
   report fire_rate  ; Returns the calculated fire rate
 end
+
 
 ; ########################################################################################################################################
 ;                                                             GO METHOD
 ; ########################################################################################################################################
 
-
 to go
-  reset-colors
-  if ticks mod 5 = 0 [  ; Conduct a strike every 50 ticks as an example
+  reset-artillery-colors
+  reset-mortar-colors
+
+  ; Log metrics
+  set total-time (ticks * 5) / 3600
+  set un-total-kills un-soldier-kills + un-artilerly-kills + un-machgun-kills + un-mortar-kills
+
+  if ticks != 0 and ticks mod (3600 / 5) = 0 [
+  ; record kill rate per hour
+    set un-kill-rate un-total-kills - last-un-kills
+    set pva-kill-rate pva-soldier-kills - last-pva-kills
+    set last-un-kills un-total-kills
+    set last-pva-kills pva-soldier-kills
+  ]
+
+  check-end-conditions
+
+  ;; STEPS PER TICK
+  ;; 1. Perform artillery strikes
+  ;; 2. Agents shoot
+  ;; 3. Weapons shoot
+  ;; 4. Agents (PVA) move
+  ;; 5. Check end conditions
+
+  ; Artillery strike
+  if ticks mod 6 * 5 = 0 [  ; Conduct a strike every 12 ticks (once per minute)
     perform-artillery-strike
   ]
-  ask turtles with [color = white] [
-    un-turtle-shoot-at-pva-turtle
-  ]
-  ask turtles with [color = black][
-    pva-turtle-shoot-at-un-turtle
 
-
-
-    let current-patch patch-here
-    let current-elevation [elevation-value] of current-patch
-    let current-target patch-here
-
-    ;; Step 1: Identify the global maximum elevation patch
-    let closest-white-turtle min-one-of turtles with [color = white] [distance myself]
-    let target-patch 0
-    ifelse closest-white-turtle = nobody [
-      stop
-      ; set target-patch max-one-of patches [elevation-value]
-    ] [
-      set target-patch [patch-here] of closest-white-turtle
+  ; Mortar fire
+  if ticks mod 12 * 5 = 0 [
+    ask turtles with [shape = "mortar"] [
+      perform-mortar-strike
     ]
+  ]
 
-    ifelse target-patch != nobody [
+  ; Machine gun fire (every tick)
+  if ticks mod  5 = 0 [
+    ask turtles with [shape = "machine-gun"] [
+      fire-machine-gun
+    ]
+  ]
 
+  ; Artillery barrage
+  ; Only fires if UN troops begin to get overrun
+  if last-barrage = 0 or (ticks - last-barrage > 3600 / 5) [ ; max one barrage per hour
+      perform-artillery-barrage
+  ]
 
-      if patch-here = closest-white-turtle [
-        stop
+  ; UN turtles
+  ask turtles with [color = white] [
+    ; Check if resting
+    ifelse resting? = true [
+      rest
+    ]
+    [
+      ; Deplete energy and get energy multiplier (energy / max-energy)
+      let energy-multiplier deplete-energy self
+
+      ; Shoot
+      if ticks mod 5 = 0 [
+        un-turtle-shoot-at-pva-turtle energy-multiplier
       ]
 
-      ;; Step 2: Find neighboring patches
-      let candidate-patches neighbors
+      ; Close quarters combat: throw grenades or bayonet rush
+       perform-grenade-bayonet energy-multiplier
+    ]
+  ]
 
-      let speed-scale 10
+  ; PVA turtles
+  ask turtles with [color = black][
+    ; Check if resting
+    ifelse resting? = true [
+      rest
+    ]
+    [
+      ; Deplete energy and get energy multiplier (energy / max-energy)
+      let energy-multiplier deplete-energy self
+
+      ; Shoot
+      pva-turtle-shoot-at-un-turtle energy-multiplier
+
+      ; Move
+      let current-patch patch-here
+      let current-elevation [elevation-value] of current-patch
+      let current-target patch-here
+
+      ;; Step 1: Identify the global maximum elevation patch
+      let closest-white-turtle min-one-of turtles with [color = white] [distance myself]
+      let target-patch 0
+      ifelse closest-white-turtle = nobody [
+        stop
+        ; set target-patch max-one-of patches [elevation-value]
+      ] [
+        set target-patch [patch-here] of closest-white-turtle
+      ]
+
+      ifelse target-patch != nobody [
+
+
+        if patch-here = closest-white-turtle [
+          stop
+        ]
+
+        ;; Step 2: Find neighboring patches
+        let candidate-patches neighbors
+
+        let speed-scale 10
 
 
 
-      let min-cost 999999999
-      let second-min-cost 999999999
-      let best-patch nobody
-      let second-best-patch nobody
+        let min-cost 999999999
+        let second-min-cost 999999999
+        let best-patch nobody
+        let second-best-patch nobody
 
-      foreach (sort neighbors) [neighbor ->
-        if ([pxcor] of neighbor > min-pxcor and [pxcor] of neighbor < max-pxcor and
-          [pycor] of neighbor > min-pycor and [pycor] of neighbor < max-pycor) [
+        foreach (sort neighbors) [neighbor ->
+          if ([pxcor] of neighbor > min-pxcor and [pxcor] of neighbor < max-pxcor and
+            [pycor] of neighbor > min-pycor and [pycor] of neighbor < max-pycor) [
 
-          ;; Calculate terrain movement cost using Tobler’s cost function
-          let terrain-cost -1 * (6 * exp (-3.5 * abs tan ([gradient-value] of neighbor * 100)))
+            ;; Calculate terrain movement cost using Tobler’s cost function
+            let terrain-cost -1 * (6 * exp (-3.5 * abs tan ([gradient-value] of neighbor * 100)))
 
-          ;; Compute average elevation of neighboring patches
-          let avg-neighbor-elevation mean [elevation-value] of neighbors
+            ;; Compute average elevation of neighboring patches
+            let avg-neighbor-elevation mean [elevation-value] of neighbors
 
-          ;; Calculate elevation difference from the average
-          let elevation-diff abs([elevation-value] of neighbor - avg-neighbor-elevation)
+            ;; Calculate elevation difference from the average
+            let elevation-diff abs([elevation-value] of neighbor - avg-neighbor-elevation)
 
-          ;; Apply ridge penalty if the elevation difference is significant
-          let ridge-penalty max (list 0 (30 * ([1 - gradient-value] of neighbor ^ 2)))
+            ;; Apply ridge penalty if the elevation difference is significant
+            let ridge-penalty max (list 0 (30 * ([1 - gradient-value] of neighbor ^ 2)))
 
-          let dist-to-target 2 * sqrt (([pxcor] of neighbor - [pxcor] of target-patch) ^ 2 +
-            ([pycor] of neighbor - [pycor] of target-patch) ^ 2)
+            let dist-to-target 2 * sqrt (([pxcor] of neighbor - [pxcor] of target-patch) ^ 2 +
+              ([pycor] of neighbor - [pycor] of target-patch) ^ 2)
 
-          let elevation-diff-to-target [elevation-value] of target-patch - [elevation-value] of neighbor
-          let elevation-bonus ifelse-value (elevation-diff-to-target > 0) [-1 * elevation-diff-to-target * 2] [0]  ;; Reward uphill movement
-          set elevation-bonus 0
+            let elevation-diff-to-target [elevation-value] of target-patch - [elevation-value] of neighbor
+            let elevation-bonus ifelse-value (elevation-diff-to-target > 0) [-1 * elevation-diff-to-target * 2] [0]  ;; Reward uphill movement
+            set elevation-bonus 0
 
-          ;; Compute total movement cost
-          let total-cost terrain-cost + ridge-penalty + dist-to-target + elevation-bonus
+            ;; Compute total movement cost
+            let total-cost terrain-cost + ridge-penalty + dist-to-target + elevation-bonus
 
-          ;; Update best and second-best patches
-          ifelse (total-cost < min-cost) [
-            set second-min-cost min-cost
-            set second-best-patch best-patch
-            set min-cost total-cost
-            set best-patch neighbor
-          ]
-          [ ;; The else block for ifelse (must be a valid command block)
-            if (total-cost < second-min-cost) [
-              set second-min-cost total-cost
-              set second-best-patch neighbor
+            ;; Update best and second-best patches
+            ifelse (total-cost < min-cost) [
+              set second-min-cost min-cost
+              set second-best-patch best-patch
+              set min-cost total-cost
+              set best-patch neighbor
+            ]
+            [ ;; The else block for ifelse (must be a valid command block)
+              if (total-cost < second-min-cost) [
+                set second-min-cost total-cost
+                set second-best-patch neighbor
+              ]
             ]
           ]
-
         ]
+
+        ;; Randomly choose between the two best patches
+        if second-best-patch != nobody and random 2 = 0 and (min-cost / second-min-cost) > 0.7[
+          set best-patch second-best-patch
+        ]
+
+        ;; Move toward the best patch if it's valid
+        if best-patch != nobody [
+          face best-patch
+
+          ;; Compute movement speed dynamically based on chosen patch
+          set movement-speed (0.371 * exp (-3.5 * abs tan ([gradient-value] of best-patch * 100) + 0.05))  ;; Tobler’s formula
+          let real-speed (movement-speed * 18 / 5) * 3.6
+          ;; print (word "Current speed: " real-speed)
+
+          ; Move
+          fd movement-speed * energy-multiplier
+        ]
+      ] [
+        ; Do nothing
+        ; stop
       ]
-
-      ;; Randomly choose between the two best patches
-      if second-best-patch != nobody and random 2 = 0 and (min-cost / second-min-cost) > 0.7[
-        set best-patch second-best-patch
-      ]
-
-
-
-
-    ;; Move toward the best patch if it's valid
-      if best-patch != nobody [
-        face best-patch
-
-        ;; Compute movement speed dynamically based on chosen patch
-        set movement-speed (0.371 * exp (-3.5 * abs tan ([gradient-value] of best-patch * 100) + 0.05))  ;; Tobler’s formula
-        let real-speed (movement-speed * 18 / 5) * 3.6
-        ;; print (word "Current speed: " real-speed)
-        fd movement-speed
-      ]
-    ] [
-        stop
     ]
   ]
+
+;  fade-rings
   tick
+end
+
+to check-end-conditions
+
+  let initial-pva-count initial-pva-troops / troops-per-agent
+  let remaining-pva count turtles with [color = black]
+  let remaining-un count turtles with [color = white]
+
+  if (remaining-pva < 0.1 * initial-pva-count) [
+;    print(initial-pva-count)
+;    print(remaining-pva)
+;    print(0.1 * initial-pva-count)
+;    print(initial-pva-troops)
+;    print(un-total-kills * troops-per-agent)
+    display ; update plots
+    user-message "The UN wins! The PVA has surrendered."
+    stop
+  ]
+
+  if (remaining-un = 0) [
+    display ; update plots
+    user-message "The PVA wins! All UN troops have been eliminated."
+    stop
+  ]
 end
 
 
 ; ########################################################################################################################################
-;                                                             Artilery Method
+;                                                             Energy/Resting Methods
 ; ########################################################################################################################################
 
 
+to-report deplete-energy [soldier]
+  let slope [gradient-value] of soldier
+  let normalized-slope (slope / max-gradient)  ;; Between [0,1]
+  let k 1.1                       ;; Energy loss per slope unit (movement)
+  let m 0.015                       ;; Base energy loss per tick (shooting)
+
+  ;; Compute new energy level
+  ask soldier [
+    set energy energy - (k * normalized-slope) - m
+
+    ;; Rest if energy < 20% (75% chance)
+    if energy < 20 and random-float 1.0 < 0.75 [
+      set resting? true
+    ]
+
+    ;; If energy is completely depleted, must rest
+    if energy < 0 [
+      set resting? true
+      set energy 0
+    ]
+  ]
+
+  ;; Return energy percentage as a multiplier
+  report ([energy] of soldier) / max-energy
+end
+
+
+to rest
+  ; Show yellow ring while resting
+;  pulse-ring
+
+  let r 12 ;; Recovery rate per tick
+  set energy (energy + r)
+
+  ;; Stop resting when recovered to > 40% energy (25% chance)
+  if energy > 40 and random-float 1.0 < 0.25 [
+    set resting? false
+  ]
+end
+
+
+; Movement visuals
+to pulse-ring
+  hatch-rings 1 [
+    set size 2.5
+    set color yellow
+    set shape "circle 2"
+  ]
+end
+
+to fade-rings
+  ask rings [
+    set size size + 1
+;    set color color - 5  ;; Gradually fade color (reduce brightness)
+    if size > 6 [ die ]  ;; Remove ring after expanding
+  ]
+end
 
 
 
+; ########################################################################################################################################
+;                                                             Artillery Method
+; ########################################################################################################################################
 
+
+; GENERAL ARTILLERY STRIKE
 to perform-artillery-strike
-  let target max-one-of patches [count turtles-here]
+  let target max-one-of patches [count turtles-here with [color = black]]
+  let noisy-x ( [pxcor] of target ) + random-normal 2 1
+  let noisy-y ( [pycor] of target ) + random-normal 2 1
+  let noisy-patch patch round noisy-x round noisy-y
 
-  ask target [
-    ; Define the impact zone
+  ask noisy-patch [
+
+
+
+
     let immediate-death-zone turtles-here
     let near-zone turtles in-radius 2
 
-    ; Execute immediate effects in the center
-    ; let sure-deaths count immediate-death-zone
-    ; ask immediate-death-zone [ die ]
     let sure-deaths 0
     ask immediate-death-zone [
-      if random-float 1.0 < 0.75 [  ; 90% chance to die
-        set sure-deaths sure-deaths + 1
+      if random-float 1.0 < 0.5 [  ; 90% chance to die
+        set un-artilerly-kills un-artilerly-kills + 1
         die
 
       ]
     ]
-    print (word "Total turtles immediately killed: " sure-deaths)
+    ; print (word "Total turtles immediately killed: " sure-deaths)
 
     ; Calculate and execute probabilistic effects in the surrounding area TODO
+    let near-deaths 0
+      ask near-zone [
+        if random-float 1.0 < 0.1 [  ; 30% chance to die
+          set near-deaths near-deaths + 1
+          die
+        ]
+      ]
+      ; print (word "Total turtles killed in the near zone: " near-deaths)
 
 
-    ; Visual effects for the strike
-    ask patches in-radius 3 [
-      set orig-color pcolor
-      set pcolor red
+
+    ask patches in-radius 2 [
+      if pcolor != red [ ; avoid coloring permanently
+        set orig-color pcolor
+        set pcolor red
+      ]
     ]
 
-    set reset-timers 1
+    set reset-artillery-timers 3
 
-    ; Report total probable and immediate deaths
-    ; print (word "Total probable deaths: " probable-deaths)
   ]
 
 end
 
+; ARTILLERY BARRAGE
+to perform-artillery-barrage
+  ;; Get the patches within a radius of 25 from the UN troops
+  let un-x [pxcor] of global-max-patch
+  let un-y [pycor] of global-max-patch
+  let center-patches patches with [distancexy un-x un-y <= 25]
 
-to reset-colors
-  if reset-timers > 0 [
-    set reset-timers reset-timers - 1
-    if reset-timers = 0 [
+  ;; Count total troops and PVA troops in the center area
+  let total-troops count turtles with [member? patch-here center-patches]
+  let pva-troops count turtles with [color = black and member? patch-here center-patches]
+
+  ;; Check if PVA troops make up ≥ 50%
+  if (total-troops > 0 and (pva-troops / total-troops) >= 0.5) [
+    print("Artillery barrage!")
+    set last-barrage ticks
+
+    ;; Call artillery strike on center patches
+    ; Do 5 mini waves of strikes
+    repeat 5 [
+      ; Sample 5 random patches within strike zone (w/out replacement)
+      let strike-patches n-of 5 center-patches
+      ask strike-patches [
+        let pva-zone turtles-here with [color = black]  ;; PVA troops
+        let un-zone turtles-here with [color = white]    ;; UN troops
+
+        ;; 90% chance to die for PVA
+        ask pva-zone [
+          if random-float 1.0 < 0.9 [
+            set un-artilerly-kills un-artilerly-kills + 1
+            die
+          ]
+        ]
+
+        ;; 0.1% chance to die for UN
+        ask un-zone [
+          if random-float 1.0 < 0.001 [
+            die
+          ]
+        ]
+
+        ;; Visual effect: Change patch color to red
+        if pcolor != red [ ; avoid coloring permanently
+          set orig-color pcolor
+          set pcolor red
+        ]
+      ]
+
+      ;; Reset the red effect after 3 ticks
+      set reset-artillery-timers 3
+
+    ; Remove sampled patches from pool
+    set center-patches center-patches with [not member? self strike-patches]
+    ]
+  ]
+end
+
+
+to reset-artillery-colors
+  if reset-artillery-timers >= 0 [
+    set reset-artillery-timers reset-artillery-timers - 1
+    if reset-artillery-timers = 0 [
       ask patches with [pcolor = red] [  ; Only reset patches that are currently red
         set pcolor orig-color  ; Restore the original color
       ]
@@ -734,6 +1064,138 @@ end
 
 
 
+; ########################################################################################################################################
+;                                                             Mortars/Machine Guns Method
+; ########################################################################################################################################
+
+
+
+; M2 60mm mortars: https://en.wikipedia.org/wiki/M2_mortar#:~:text=The%20M2%20mortar%20is%20a,War%20for%20light%20infantry%20support.
+; 18 rounds per minute (1 min = 12 ticks)
+; range (meters): [180, 1844]
+to perform-mortar-strike
+  let target nobody
+
+  ;; Define the minimum and maximum range in patches
+  let min-range 20  ;; Corresponding to 180 meters (88 m. per patch)
+  let max-range 55  ;; Corresponding to 1844 meters
+
+  ;; Find the patch with the highest concentration of PVA troops within range of the firing mortar
+  set target max-one-of patches in-radius max-range [count turtles-here with [color = black]]
+
+  ;; Make sure target isn't too close
+  if (abs [pxcor] of target <= min-range) and (abs [pycor] of target <= min-range) [
+    set target nobody
+  ]
+
+  if target != nobody [
+    ;; Add some noise to the strike (mimic inaccuracy)
+    let noisy-x ( [pxcor] of target ) + random-normal 2 1
+    let noisy-y ( [pycor] of target ) + random-normal 2 1
+    let noisy-patch patch round noisy-x round noisy-y
+
+    ;; Perform the mortar strike on the chosen patch
+    let nums 0
+    ask noisy-patch [
+      set nums count turtles in-radius 2 with [color = black]
+    ]
+    if nums > 0 [
+      ask noisy-patch [
+        ;; Define the impact zones (immediate-death-zone and near-zone)
+        let immediate-death-zone turtles-here with [color = black]
+        let near-zone turtles in-radius 2 with [color = black]
+
+        ;; Immediate death chance for black troops
+        ask immediate-death-zone [
+          if random-float 1.0 < 0.3 [
+            set un-mortar-kills un-mortar-kills + 1
+            die
+          ]
+        ]
+
+        ;; Mortar effect on nearby black troops
+        let near-deaths 0
+        ask near-zone [
+          if random-float 1.0 < 0.05 [
+            set near-deaths near-deaths + 1
+            set un-mortar-kills un-mortar-kills + 1
+            die
+          ]
+        ]
+
+        ;; Visual effect: Change the color of affected patches
+        ask patches in-radius 2 [
+          if pcolor != yellow [ ; avoid coloring permanently
+            set orig-color pcolor
+            set pcolor yellow
+          ]
+        ]
+
+        ;; Reset the timers for the yellow effect
+        set reset-mortar-timers 2
+      ]
+    ]
+  ]
+end
+
+; Vickers machine guns: https://en.wikipedia.org/wiki/Vickers_machine_gun
+; 450 rounds per min (per 12 ticks)
+; 2000 meter range (111 patches)
+to fire-machine-gun
+  let shooting-range 60  ;; Maximum shooting distance
+  let num-shots 38  ;; Number of shots per tick
+  let effectiveness 0.5 ; lower is worse
+
+  let fire-rate calculate-fire-rate 4 (num-shots / 2) num-shots
+;  print fire-rate
+
+  ;; Fire num-shots times per tick
+  repeat fire-rate [
+    let target min-one-of turtles with [color = black] [distance self]
+    if target != nobody and [distance target] of self <= shooting-range [
+      let prob compute-hit-probability-for-un self target effectiveness shooting-range hill_cover ;; params: shooter, target, bullet_effectiveness, bullet_range, cover_factor
+
+      if random-float 1 < prob and prob > 0.001 [
+        set un-machgun-kills un-machgun-kills + 1
+        ask target [ die ] ;; Kill black agent if hit
+      ]
+    ]
+  ]
+end
+
+to reset-mortar-colors
+  if reset-mortar-timers >= 0 [
+    set reset-mortar-timers reset-mortar-timers - 1
+    if reset-mortar-timers = 0 [
+      ask patches with [pcolor = yellow] [  ; Only reset patches that are currently yellow
+        set pcolor orig-color  ; Restore the original color
+      ]
+    ]
+  ]
+end
+
+
+
+; ########################################################################################################################################
+;                                                             Close Quarters Combat: Grenades & Bayonet
+; ########################################################################################################################################
+to perform-grenade-bayonet [energy-multiplier]
+  let close-range 1  ;; We'll say grenade/bayonet is effective when they're in the same patch
+
+  ;; Find all nearby turtles within the close-range threshold
+  let nearby-turtles turtles in-radius close-range
+
+  ask nearby-turtles [
+    if color = black [  ;; If enemy is a PVA soldier
+      let prob random-float 1.0
+      if prob < 0.6 [  ;; high chance PVA soldier dies (lower accounting for energy)
+        print("grenade/bayonet!")
+        set un-soldier-kills un-soldier-kills + 1
+        die
+      ]
+    ]
+  ]
+end
 
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -757,8 +1219,8 @@ GRAPHICS-WINDOW
 100
 -100
 100
-1
-1
+0
+0
 1
 ticks
 30.0
@@ -799,10 +1261,10 @@ NIL
 
 BUTTON
 49
-168
+214
 176
-201
-spawn-forces
+247
+respawn forces
 spawn-forces
 NIL
 1
@@ -868,6 +1330,295 @@ W
 24
 15.0
 1
+
+PLOT
+1209
+64
+1409
+214
+total un kills
+ticks
+kills
+0.0
+1000.0
+0.0
+2000.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot (un-total-kills * troops-per-agent)"
+
+PLOT
+1021
+370
+1181
+490
+un artillery kills
+ticks
+kills
+0.0
+1000.0
+0.0
+200.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot un-artilerly-kills * troops-per-agent"
+
+PLOT
+1214
+528
+1414
+678
+total pva kills
+ticks
+kills
+0.0
+1000.0
+0.0
+100.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot (pva-soldier-kills * troops-per-agent)"
+
+SLIDER
+28
+160
+200
+193
+hill_cover
+hill_cover
+0.0
+1.0
+0.05
+0.01
+1
+NIL
+HORIZONTAL
+
+MONITOR
+40
+322
+173
+367
+# UN machine guns
+num_machguns
+17
+1
+11
+
+MONITOR
+40
+375
+136
+420
+# UN mortars
+num_morts
+17
+1
+11
+
+MONITOR
+40
+268
+189
+313
+total sim. time (hours)
+total-time
+2
+1
+11
+
+PLOT
+1005
+64
+1194
+214
+un kill rate (troops/hr)
+ticks
+kill rate
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot un-kill-rate * troops-per-agent"
+
+PLOT
+1001
+528
+1201
+678
+pva kill rate (troops/hr)
+ticks
+kill rate
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot pva-kill-rate * troops-per-agent"
+
+PLOT
+829
+235
+989
+355
+un soldier kills
+ticks
+kills
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot un-soldier-kills * troops-per-agent"
+
+PLOT
+1020
+235
+1180
+355
+un machine gun kills
+ticks
+kills
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot un-machgun-kills * troops-per-agent"
+
+PLOT
+1211
+235
+1371
+355
+un mortar kills
+ticks
+kills
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot un-mortar-kills * troops-per-agent"
+
+TEXTBOX
+799
+502
+949
+521
+PVA:
+15
+0.0
+1
+
+TEXTBOX
+809
+40
+959
+60
+UN:
+16
+0.0
+1
+
+MONITOR
+807
+64
+893
+109
+initial troops
+initial-un-troops
+17
+1
+11
+
+MONITOR
+798
+528
+881
+573
+initial troops
+initial-pva-troops
+17
+1
+11
+
+MONITOR
+898
+64
+993
+109
+remaining
+initial-un-troops - (pva-soldier-kills * troops-per-agent)
+17
+1
+11
+
+MONITOR
+890
+528
+990
+573
+remaining
+initial-pva-troops - (un-total-kills * troops-per-agent)
+17
+1
+11
+
+MONITOR
+812
+120
+989
+165
+current un kill rate (troops/hr)
+un-kill-rate * troops-per-agent
+17
+1
+11
+
+MONITOR
+802
+582
+987
+627
+current pva kill rate (troops/hr)
+pva-kill-rate * troops-per-agent
+17
+1
+11
+
+MONITOR
+40
+448
+157
+493
+troops per turtle
+troops-per-agent
+17
+1
+11
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -1083,9 +1834,9 @@ Line -16777216 false 45 225 255 225
 Line -16777216 false 45 195 255 195
 Line -16777216 false 45 150 255 150
 Rectangle -16777216 false false 135 105 165 120
-Rectangle -1184463 false false 143 0 158 105
+Rectangle -955883 false false 143 0 158 105
 Rectangle -7500403 true true 105 105 195 255
-Polygon -1184463 false false 105 105 105 255 195 255 195 105 150 105 105 105 105 105
+Polygon -955883 false false 105 105 105 255 195 255 195 105 150 105 105 105 105 105
 
 mortar
 true
@@ -1094,10 +1845,10 @@ Polygon -7500403 true true 165 30 165 45 165 180 165 195 165 210 165 255 165 255
 Line -16777216 false 120 150 180 150
 Line -16777216 false 120 195 180 195
 Line -16777216 false 165 30 135 30
-Polygon -2674135 false false 165 30 135 30 135 45 135 180 135 195 135 210 135 225 135 255 165 255 165 225 165 210 165 195 165 180 165 45
+Polygon -1184463 false false 165 30 135 30 135 45 135 180 135 195 135 210 135 225 135 255 165 255 165 225 165 210 165 195 165 180 165 45
 Rectangle -7500403 true true 90 255 210 270
 Polygon -7500403 false true 90 255
-Rectangle -2674135 false false 90 255 210 270
+Rectangle -1184463 false false 90 255 210 270
 
 mortar2
 false
