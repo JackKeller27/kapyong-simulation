@@ -44,6 +44,8 @@ globals [
   un-artilerly-kills
   pva-soldier-kills
 
+  last-un-kills
+  last-pva-kills
   un-kill-rate
   pva-kill-rate
 
@@ -542,15 +544,15 @@ end
 
 
 to un-turtle-shoot-at-pva-turtle [energy-multiplier]
-  let shooting-range 500  ;; Maximum shooting distance
+  let shooting-range 100  ;; Maximum shooting distance
   let effectiveness 4 ; higher is worse
   let fire-rate calculate-fire-rate 4 1 20 ; k min-rate max-rate
 
   if (ticks - last-shot-time >=  fire-rate * 5 - random (5)) [
     set last-shot-time ticks
     let target min-one-of turtles with [color = black] [distance self]
-    if target != nobody and [distance target] of self <= shooting-range / meters-per-patch [
-      let prob compute-hit-probability-for-un self target effectiveness shooting-range hill_cover ;; params: shooter, target, bullet_effectiveness, bullet_range, cover_factor
+    if target != nobody and [distance target] of self <= shooting-range [
+      let prob compute-hit-probability-for-un self target effectiveness 20 hill_cover ;; params: shooter, target, bullet_effectiveness, bullet_range, cover_factor
 
       ;; Account for energy level
       ;; set prob (prob * energy-multiplier)
@@ -565,15 +567,15 @@ end
 
 
 to pva-turtle-shoot-at-un-turtle [energy-multiplier]
-  let shooting-range 500  ;; Maximum shooting distance
-  let effectiveness 2 ; higher is worse
-  let fire-rate calculate-fire-rate 4 1 60 ; k min-rate max-rate
+  let shooting-range 100  ;; Maximum shooting distance
+  let effectiveness 2 ; lower is better
+  let fire-rate calculate-fire-rate 4 1 40 ; k min-rate max-rate
 
   if (ticks -  last-shot-time >=  fire-rate * 5 - random (5)) [
     set last-shot-time ticks
     let target min-one-of turtles with [color = white] [distance self]
-    if target != nobody and [distance target] of self <= shooting-range / meters-per-patch [
-      let prob compute-hit-probability-for-pva self target effectiveness shooting-range ;; params: shooter, target, bullet_effectiveness, bullet_range, cover_factor
+    if target != nobody and [distance target] of self <= shooting-range [
+      let prob compute-hit-probability-for-pva self target effectiveness 15 ;; params: shooter, target, bullet_effectiveness, bullet_range
 
     ;; Account for energy level
     set prob (prob * energy-multiplier)
@@ -648,7 +650,7 @@ to-report compute-hit-probability-for-un [shooter target bullet_effectiveness bu
 
 
   ; Multiply entire prob by cover factor
-  set hit-probability hit-probability
+  set hit-probability hit-probability * (1 - cover_factor)
 
   report hit-probability
 end
@@ -673,7 +675,6 @@ end
 ;                                                             GO METHOD
 ; ########################################################################################################################################
 
-
 to go
   reset-artillery-colors
   reset-mortar-colors
@@ -683,8 +684,10 @@ to go
 
   if ticks != 0 and ticks mod (3600 / 5) = 0 [
   ; record kill rate per hour
-    set un-kill-rate un-total-kills - un-kill-rate
-    set pva-kill-rate pva-soldier-kills - pva-kill-rate
+    set un-kill-rate un-total-kills - last-un-kills
+    set pva-kill-rate pva-soldier-kills - last-pva-kills
+    set last-un-kills un-total-kills
+    set last-pva-kills pva-soldier-kills
   ]
 
   check-end-conditions
@@ -1060,15 +1063,15 @@ to perform-mortar-strike
   let target nobody
 
   ;; Define the minimum and maximum range in patches
-  let min-range 180  ;; Corresponding to 180 meters (88 m. per patch)
-  let max-range 1844  ;; Corresponding to 1844 meters
+  let min-range 20  ;; Corresponding to 180 meters (88 m. per patch)
+  let max-range 40  ;; Corresponding to 1844 meters
 
   ; TODO this needs to be fixed; should not fire if there's no patches with black troops nearby
   ;; Find the patch with the highest concentration of PVA troops within range of the firing mortar
-  set target max-one-of patches in-radius (max-range / meters-per-patch) [count turtles-here with [color = black]]
+  set target max-one-of patches in-radius max-range [count turtles-here with [color = black]]
 
   ;; Make sure target isn't too close
-  if (abs [pxcor] of target <= min-range / meters-per-patch) and (abs [pycor] of target <= min-range / meters-per-patch) [
+  if (abs [pxcor] of target <= min-range) and (abs [pycor] of target <= min-range) [
     set target nobody
   ]
 
@@ -1120,7 +1123,7 @@ end
 ; 450 rounds per min (per 12 ticks)d
 ; 2000 meter range (111 patches)
 to fire-machine-gun
-  let shooting-range 20000  ;; Maximum shooting distance
+  let shooting-range 40  ;; Maximum shooting distance
   let num-shots 38  ;; Number of shots per tick
 
   let fire-rate calculate-fire-rate 4 (num-shots / 2) num-shots
@@ -1129,8 +1132,8 @@ to fire-machine-gun
   ;; Fire num-shots times per tick
   repeat fire-rate [
     let target min-one-of turtles with [color = black] [distance self]
-    if target != nobody and [distance target] of self <= shooting-range / meters-per-patch [
-      let prob compute-hit-probability-for-un self target 100 shooting-range hill_cover ;; params: shooter, target, bullet_effectiveness, bullet_range, cover_factor
+    if target != nobody and [distance target] of self <= shooting-range [
+      let prob compute-hit-probability-for-un self target 0.5 shooting-range hill_cover ;; params: shooter, target, bullet_effectiveness, bullet_range, cover_factor
 
       if random-float 1 < prob and prob > 0.001 [
         set un-machgun-kills un-machgun-kills + 1
@@ -1261,7 +1264,7 @@ hill_multiplier
 hill_multiplier
 0.01
 1.25
-1.06
+0.3
 0.01
 1
 NIL
@@ -1425,7 +1428,7 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "plot un-kill-rate"
+"default" 1.0 0 -16777216 true "" "plot un-kill-rate * troops-per-agent"
 
 PLOT
 1001
@@ -1443,7 +1446,7 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "plot pva-kill-rate"
+"default" 1.0 0 -16777216 true "" "plot pva-kill-rate * troops-per-agent"
 
 PLOT
 829
@@ -1559,6 +1562,28 @@ MONITOR
 573
 remaining
 initial-pva-troops - (un-total-kills * troops-per-agent)
+17
+1
+11
+
+MONITOR
+837
+124
+964
+169
+current un kill rate
+un-kill-rate * troops-per-agent
+17
+1
+11
+
+MONITOR
+822
+588
+955
+633
+current pva kill rate
+pva-kill-rate * troops-per-agent
 17
 1
 11
