@@ -248,7 +248,7 @@ to setup
   set night? True
 
   ; Meters per patch
-  set meters-per-patch 9.03
+  set meters-per-patch 18.15 ; 9.03
 
   ; Initialize min and max gradient values
   set min-gradient 999999
@@ -545,14 +545,14 @@ end
 
 to un-turtle-shoot-at-pva-turtle [energy-multiplier]
   let shooting-range 100  ;; Maximum shooting distance
-  let effectiveness 4 ; higher is worse
+  let effectiveness 0.5 ; higher is worse
   let fire-rate calculate-fire-rate 4 1 20 ; k min-rate max-rate
 
   if (ticks - last-shot-time >=  fire-rate * 5 - random (5)) [
     set last-shot-time ticks
     let target min-one-of turtles with [color = black] [distance self]
     if target != nobody and [distance target] of self <= shooting-range [
-      let prob compute-hit-probability-for-un self target effectiveness 20 hill_cover ;; params: shooter, target, bullet_effectiveness, bullet_range, cover_factor
+      let prob compute-hit-probability-for-un self target effectiveness 10 hill_cover ;; params: shooter, target, bullet_effectiveness, bullet_range, cover_factor
 
       ;; Account for energy level
       ;; set prob (prob * energy-multiplier)
@@ -568,14 +568,14 @@ end
 
 to pva-turtle-shoot-at-un-turtle [energy-multiplier]
   let shooting-range 100  ;; Maximum shooting distance
-  let effectiveness 2 ; lower is better
+  let effectiveness 0.1 ; lower is better
   let fire-rate calculate-fire-rate 4 1 40 ; k min-rate max-rate
 
   if (ticks -  last-shot-time >=  fire-rate * 5 - random (5)) [
     set last-shot-time ticks
     let target min-one-of turtles with [color = white] [distance self]
     if target != nobody and [distance target] of self <= shooting-range [
-      let prob compute-hit-probability-for-pva self target effectiveness  ;; params: shooter, target, bullet_effectiveness, bullet_range
+      let prob compute-hit-probability-for-pva self target effectiveness 10 ;; params: shooter, target, bullet_effectiveness, bullet_range
 
     ;; Account for energy level
     set prob (prob * energy-multiplier)
@@ -679,6 +679,7 @@ to go
   reset-artillery-colors
   reset-mortar-colors
 
+  ; Log metrics
   set total-time (ticks * 5) / 3600
   set un-total-kills un-soldier-kills + un-artilerly-kills + un-machgun-kills + un-mortar-kills
 
@@ -884,7 +885,7 @@ end
 to-report deplete-energy [soldier]
   let slope [gradient-value] of soldier
   let normalized-slope (slope / max-gradient)  ;; Between [0,1]
-  let k 2.0                       ;; Energy loss per slope unit (movement)
+  let k 1.5                       ;; Energy loss per slope unit (movement)
   let m 0.015                       ;; Base energy loss per tick (shooting)
 
   ;; Compute new energy level
@@ -912,11 +913,11 @@ to rest
   ; Show yellow ring while resting
 ;  pulse-ring
 
-  let r 2  ;; Recovery rate per tick
+  let r 4  ;; Recovery rate per tick
   set energy (energy + r)
 
-  ;; Stop resting when recovered to > 40% energy (50% chance)
-  if energy > 40 and random-float 1.0 < 0.5 [
+  ;; Stop resting when recovered to > 40% energy (25% chance)
+  if energy > 40 and random-float 1.0 < 0.25 [
     set resting? false
   ]
 end
@@ -1064,7 +1065,7 @@ to perform-mortar-strike
 
   ;; Define the minimum and maximum range in patches
   let min-range 20  ;; Corresponding to 180 meters (88 m. per patch)
-  let max-range 40  ;; Corresponding to 1844 meters
+  let max-range 55  ;; Corresponding to 1844 meters
 
   ; TODO this needs to be fixed; should not fire if there's no patches with black troops nearby
   ;; Find the patch with the highest concentration of PVA troops within range of the firing mortar
@@ -1076,13 +1077,18 @@ to perform-mortar-strike
   ]
 
   if target != nobody [
+    ;; Add some noise to the strike (mimic inaccuracy)
+    let noisy-x ( [pxcor] of target ) + random-normal 2 1
+    let noisy-y ( [pycor] of target ) + random-normal 2 1
+    let noisy-patch patch round noisy-x round noisy-y
+
     ;; Perform the mortar strike on the chosen patch
     let nums 0
-    ask target [
+    ask noisy-patch [
       set nums count turtles in-radius 2 with [color = black]
     ]
     if nums > 0 [
-      ask target [
+      ask noisy-patch [
         ;; Define the impact zones (immediate-death-zone and near-zone)
         let immediate-death-zone turtles-here with [color = black]
         let near-zone turtles in-radius 2 with [color = black]
@@ -1123,8 +1129,9 @@ end
 ; 450 rounds per min (per 12 ticks)d
 ; 2000 meter range (111 patches)
 to fire-machine-gun
-  let shooting-range 40  ;; Maximum shooting distance
+  let shooting-range 60  ;; Maximum shooting distance
   let num-shots 38  ;; Number of shots per tick
+  let effectiveness 0.5
 
   let fire-rate calculate-fire-rate 4 (num-shots / 2) num-shots
   print fire-rate
@@ -1133,7 +1140,7 @@ to fire-machine-gun
   repeat fire-rate [
     let target min-one-of turtles with [color = black] [distance self]
     if target != nobody and [distance target] of self <= shooting-range [
-      let prob compute-hit-probability-for-un self target 0.5 shooting-range hill_cover ;; params: shooter, target, bullet_effectiveness, bullet_range, cover_factor
+      let prob compute-hit-probability-for-un self target effectiveness shooting-range hill_cover ;; params: shooter, target, bullet_effectiveness, bullet_range, cover_factor
 
       if random-float 1 < prob and prob > 0.001 [
         set un-machgun-kills un-machgun-kills + 1
@@ -1204,6 +1211,17 @@ GRAPHICS-WINDOW
 ticks
 30.0
 
+MONITOR
+0
+0
+0
+0
+NIL
+NIL
+17
+1
+11
+
 BUTTON
 40
 62
@@ -1264,7 +1282,7 @@ hill_multiplier
 hill_multiplier
 0.01
 1.25
-0.3
+0.8
 0.01
 1
 NIL
@@ -1326,7 +1344,7 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "plot (un-soldier-kills * troops-per-agent)"
+"default" 1.0 0 -16777216 true "" "plot (un-total-kills * troops-per-agent)"
 
 PLOT
 1021
