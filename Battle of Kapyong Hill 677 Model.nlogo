@@ -19,6 +19,7 @@ globals [
   ; Turtle params
   initial-pva-troops
   initial-un-troops
+  troops-per-agent
   max-energy
 
   ; Custom colors
@@ -30,12 +31,20 @@ globals [
 
   night?
 
+  num_machguns
+  num_morts
+
   reset-artillery-timers
   reset-mortar-timers
 
+  un-total-kills
   un-soldier-kills
+  un-mortar-kills
+  un-machgun-kills
   un-artilerly-kills
   pva-soldier-kills
+
+  total-time
 ]
 
 ; Patch and turtle variables
@@ -221,6 +230,7 @@ to setup
   ; Set turtle params
   set initial-pva-troops 2000
   set initial-un-troops 100
+  set troops-per-agent 5
   set max-energy 100
 
   ; Set custom colors
@@ -254,7 +264,9 @@ to setup
   ;  print lat-range
   ;  print lon-range
 
-
+  set un-total-kills 0
+  set un-mortar-kills 0
+  set un-machgun-kills 0
   set un-soldier-kills 0
   set un-artilerly-kills 0
   set pva-soldier-kills 0
@@ -296,7 +308,7 @@ to spawn-forces
 
   ; SPAWN CHINESE (PVA) FIRST
   let cluster-radius-pva 20 ;; Controls spread of each cluster
-  let cluster-size-pva initial-pva-troops / 3 / 5  ;; should be initial-pva-troops / 11
+  let cluster-size-pva initial-pva-troops / 9 / troops-per-agent
   let offset (cluster-radius-pva / 2)
 
   let global-max-patch max-one-of patches [elevation-value]
@@ -304,22 +316,22 @@ to spawn-forces
   let max-y [pycor] of global-max-patch ; steepest point
 
   ;; Clump 1: Top Left
-  ;; create-turtles cluster-size-pva [
-  ;;   setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
-  ;;         (max-pycor - offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
-  ;;   set shape "person"
-  ;;   set color black
-    ;;pen-down
-  ;; ]
+   create-turtles cluster-size-pva [
+     setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
+           (max-pycor - offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
+     set shape "person"
+     set color black
+;    pen-down
+   ]
 
   ;; Clump 2: Top Middle
-  ;; create-turtles cluster-size-pva [
-  ;;   setxy (0 + random-float cluster-radius-pva - cluster-radius-pva / 2)
-  ;;         (max-pycor - offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
-  ;;   set shape "person"
-  ;;   set color black
-    ;;pen-down
-  ;; ]
+   create-turtles cluster-size-pva [
+     setxy (0 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+           (max-pycor - offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
+     set shape "person"
+     set color black
+;    pen-down
+   ]
 
   ;; Clump 3: Bottom Left
   create-turtles cluster-size-pva [
@@ -331,13 +343,13 @@ to spawn-forces
   ]
 
   ;; Clump 4: Middle Left
-  ;; create-turtles cluster-size-pva [
-  ;;   setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
-  ;;         (0 + random-float cluster-radius-pva - cluster-radius-pva / 2)
-  ;;   set shape "person"
-  ;;   set color black
-  ;;   ;;pen-down
-  ;; ]
+   create-turtles cluster-size-pva [
+     setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
+           (0 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+     set shape "person"
+     set color black
+     ;;pen-down
+   ]
 
   ;; Clump 5: Between Top Left and Top Middle
   create-turtles cluster-size-pva [
@@ -348,41 +360,41 @@ to spawn-forces
     ;;pen-down
   ]
 
-  ;; Clump 6: Between Middle Left and Top Middle
-  ;; create-turtles cluster-size-pva [
-  ;;   setxy ((min-pxcor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
-  ;;   ((max-pycor - offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
-  ;;   set shape "person"
-  ;;   set color black
-    ;;pen-down
-  ;; ]
+;  ;; Clump 6: Between Middle Left and Top Middle
+;   create-turtles cluster-size-pva [
+;     setxy ((min-pxcor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+;     ((max-pycor - offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+;     set shape "person"
+;     set color black
+;    ;;pen-down
+;   ]
 
   ;; Clump 7: Under Top Left
-  ;; create-turtles cluster-size-pva [
-  ;;   setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
-  ;;   ((max-pycor - offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
-  ;;   set shape "person"
-  ;;   set color black
+   create-turtles cluster-size-pva [
+     setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
+     ((max-pycor - offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+     set shape "person"
+     set color black
     ;;pen-down
-  ;; ]
+   ]
 
-  ;; Clump 8: Between Bottom Left and Middle Left
-  ;; create-turtles cluster-size-pva [
-  ;;   setxy ((min-pxcor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
-  ;;   ((min-pycor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
-  ;;   set shape "person"
-  ;;   set color black
-    ;;pen-down
-  ;; ]
+;  ;; Clump 8: Between Bottom Left and Middle Left
+;   create-turtles cluster-size-pva [
+;     setxy ((min-pxcor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+;     ((min-pycor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+;     set shape "person"
+;     set color black
+;    ;;pen-down
+;   ]
 
   ;; Clump 9: Between Middle Left and Bottom Middle
-  ;; create-turtles cluster-size-pva [
-  ;;   setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
-  ;;   ((min-pycor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
-  ;;   set shape "person"
-  ;;   set color black
+   create-turtles cluster-size-pva [
+     setxy (min-pxcor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
+     ((min-pycor + offset) / 2 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+     set shape "person"
+     set color black
     ;;pen-down
-  ;; ]
+   ]
 
   ;; Clump 10: Between Bottom Left and Bottom Middle
   create-turtles cluster-size-pva [
@@ -394,18 +406,18 @@ to spawn-forces
   ]
 
   ;; Clump 11: Bottom Middle
-  ;; create-turtles cluster-size-pva [
-  ;;   setxy (0 + random-float cluster-radius-pva - cluster-radius-pva / 2)
-  ;;   (min-pycor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
-  ;;   set shape "person"
-  ;;   set color black
+   create-turtles cluster-size-pva [
+     setxy (0 + random-float cluster-radius-pva - cluster-radius-pva / 2)
+     (min-pycor + offset + random-float cluster-radius-pva - cluster-radius-pva / 2)
+     set shape "person"
+     set color black
     ;;pen-down
-  ;; ]
+   ]
 
 
   ; SPAWN UN FORCES
   let cluster-radius-un 15 ;; Controls spread of each cluster
-  let cluster-size-un initial-un-troops ;; initial-un-troops (2 PPCLI D Company)
+  let cluster-size-un initial-un-troops / troops-per-agent ;; initial-un-troops (2 PPCLI D Company)
 
   ; CREATE UN WEAPONRY (SCALE QUANTITY BASED ON HILL STEEPNESS)
   ; Logistic growth (scaling) parameters
@@ -417,8 +429,8 @@ to spawn-forces
   let k 2.5  ;; Growth rate parameter
   let exp-part exp (- k * ((1 / hill_multiplier) - 1)) ; hill_multiplier is x-axis (want growth to increase as it decreases)
 
-  let num_morts max_morts / (1 + ((max_morts / init_morts) - 1) * exp-part)
-  let num_machguns max_machguns / (1 + ((max_machguns / init_machguns) - 1) * exp-part)
+  set num_morts int(max_morts / (1 + ((max_morts / init_morts) - 1) * exp-part))
+  set num_machguns int(max_machguns / (1 + ((max_machguns / init_machguns) - 1) * exp-part))
 
   ; Machine guns (default 2)
   create-turtles num_machguns [
@@ -441,7 +453,7 @@ to spawn-forces
   ]
 
   ; Troops
-  create-turtles (cluster-size-un - num_machguns * 3 - num_morts * 3) [ ; 3 troops per machine gun, 3 per mortar
+  create-turtles (cluster-size-un - num_machguns * (3 / troops-per-agent) - num_morts * (3 / troops-per-agent)) [ ; 3 troops per machine gun, 3 per mortar
     setxy (max-x + random-float cluster-radius-un - cluster-radius-un / 2)
           (max-y + random-float cluster-radius-un - cluster-radius-un / 2)
     set shape "person"
@@ -640,6 +652,9 @@ end
 to go
   reset-artillery-colors
   reset-mortar-colors
+
+  set total-time (ticks * 5) / 3600
+  set un-total-kills un-soldier-kills + un-artilerly-kills + un-machgun-kills + un-mortar-kills
 
   ;; STEPS PER TICK
   ;; 1. Perform artillery strikes
@@ -1042,7 +1057,7 @@ to perform-mortar-strike
         ;; Immediate death chance for black troops
         ask immediate-death-zone [
           if random-float 1.0 < 0.3 [
-            set un-soldier-kills un-soldier-kills + 1
+            set un-mortar-kills un-mortar-kills + 1
             die
           ]
         ]
@@ -1052,7 +1067,7 @@ to perform-mortar-strike
         ask near-zone [
           if random-float 1.0 < 0.05 [
             set near-deaths near-deaths + 1
-            set un-soldier-kills un-soldier-kills + 1
+            set un-mortar-kills un-mortar-kills + 1
             die
           ]
         ]
@@ -1085,7 +1100,7 @@ to fire-machine-gun
       let prob compute-hit-probability-for-un self target 0.5 22 hill_cover ;; params: shooter, target, bullet_effectiveness, bullet_range, cover_factor
 
       if random-float 1 < prob and prob > 0.001 [
-        set un-soldier-kills un-soldier-kills + 1
+        set un-machgun-kills un-machgun-kills + 1
         ask target [ die ] ;; Kill black agent if hit
       ]
     ]
@@ -1124,7 +1139,6 @@ to perform-grenade-bayonet [energy-multiplier]
     ]
   ]
 end
-
 
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -1214,7 +1228,7 @@ hill_multiplier
 hill_multiplier
 0.01
 1.25
-1.25
+1.0
 0.01
 1
 NIL
@@ -1261,11 +1275,11 @@ W
 1
 
 PLOT
-846
-128
-1046
-278
-un agents kills
+1209
+64
+1409
+214
+total un kills
 time step
 kills
 0.0
@@ -1276,16 +1290,16 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "plot un-soldier-kills"
+"default" 1.0 0 -16777216 true "" "plot (un-soldier-kills * troops-per-agent)"
 
 PLOT
-884
-346
-1084
-496
-artillery kills
+1021
+370
+1181
+490
+un artillery kills
 time step
-artilery kills
+kills
 0.0
 1000.0
 0.0
@@ -1297,11 +1311,11 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot un-artilerly-kills"
 
 PLOT
-1106
-129
-1306
-279
-pva agents kills
+1214
+528
+1414
+678
+total pva kills
 time step
 kills
 0.0
@@ -1312,7 +1326,7 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "plot pva-soldier-kills"
+"default" 1.0 0 -16777216 true "" "plot (pva-soldier-kills * troops-per-agent)"
 
 SLIDER
 28
@@ -1328,6 +1342,171 @@ hill_cover
 1
 NIL
 HORIZONTAL
+
+MONITOR
+33
+321
+166
+366
+# UN machine guns
+num_machguns
+17
+1
+11
+
+MONITOR
+32
+383
+128
+428
+# UN mortars
+num_morts
+17
+1
+11
+
+MONITOR
+31
+445
+180
+490
+total sim. time (hours)
+total-time
+17
+1
+11
+
+MONITOR
+809
+65
+995
+110
+un kill rate (troops/hr)
+((un-soldier-kills + un-artilerly-kills) * troops-per-agent) / total-time
+17
+1
+11
+
+MONITOR
+797
+527
+989
+572
+pva kill rate (troops/hr)
+(pva-soldier-kills * 5) / total-time
+17
+1
+11
+
+PLOT
+1005
+64
+1194
+214
+un kill rate (troops/hr)
+time step
+kill rate
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot ((un-soldier-kills + un-artilerly-kills) * troops-per-agent) / total-time"
+
+PLOT
+1001
+528
+1201
+678
+pva kill rate (troops/hr)
+time step
+kill rate
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot ((pva-soldier-kills) * troops-per-agent) / total-time"
+
+PLOT
+829
+235
+989
+355
+un soldier kills
+time step
+kills
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot un-soldier-kills"
+
+PLOT
+1020
+235
+1180
+355
+un machine gun kills
+time step
+kills
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot un-machgun-kills"
+
+PLOT
+1211
+235
+1371
+355
+un mortar kills
+time step
+kills
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot un-mortar-kills"
+
+TEXTBOX
+799
+502
+949
+521
+PVA:
+15
+0.0
+1
+
+TEXTBOX
+809
+40
+959
+60
+UN:
+16
+0.0
+1
 
 @#$#@#$#@
 ## WHAT IS IT?
