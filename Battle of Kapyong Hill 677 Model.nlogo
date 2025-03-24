@@ -5,6 +5,11 @@ globals [
   gradient-data
   elevation-data
 
+  ; Multipliers (independent variables)
+  ; Based on hill_multiplier
+  steepness-multiplier
+  weapons-multiplier
+
   ; Patch params
   meters-per-patch
   global-max-patch
@@ -125,7 +130,7 @@ to compute-patch-data-from-scratch
       ]
 
       ; Set the gradient value for the patch
-      set gradient-value avg-gradient * hill_multiplier
+      set gradient-value avg-gradient * steepness-multiplier ; hill_multiplier
       set plabel avg-gradient
       set plabel-color black
     ]
@@ -151,7 +156,7 @@ to compute-patch-data-from-scratch
       ; Set the gradient value for the patch
 
       ; Store raw elevation in patch variable (not scaled)
-      set elevation-value avg-elevation * hill_multiplier
+      set elevation-value avg-elevation * steepness-multiplier ; hill_multiplier
     ]
   ]
 
@@ -212,8 +217,8 @@ to import-patch-data
       ]
 
     ask patch px py [
-      set elevation-value (elevation * hill_multiplier)
-      set gradient-value (gradient * hill_multiplier)
+      set elevation-value (elevation * steepness-multiplier) ; * hill_multiplier
+      set gradient-value (gradient * steepness-multiplier) ; * hill_multiplier
     ]
   ]
 
@@ -233,6 +238,16 @@ to setup
 ;  ; Patch setup
 ;  set num-patches-x max-pxcor * 2 + 1 ; + 1 accounts for patch 00
 ;  set num-patches-y max-pycor * 2 + 1 ; + 1 accounts for patch 00
+
+
+  ; Figure out whether we want to toggle hill steepness, weapon quantity, or both
+  ifelse use-custom-sliders [
+    set steepness-multiplier steepness
+    set weapons-multiplier weapons
+  ] [
+    set steepness-multiplier hill_multiplier
+    set weapons-multiplier hill_multiplier
+  ]
 
   ; Set turtle params
   set initial-pva-troops 2000
@@ -435,10 +450,19 @@ to spawn-forces
   let max_morts max_factor * init_morts
   let max_machguns max_factor * init_machguns
   let k 2.5  ;; Growth rate parameter
-  let exp-part exp (- k * ((1 / hill_multiplier) - 1)) ; hill_multiplier is x-axis (want growth to increase as it decreases)
 
-  set num_morts int(max_morts / (1 + ((max_morts / init_morts) - 1) * exp-part))
-  set num_machguns int(max_machguns / (1 + ((max_machguns / init_machguns) - 1) * exp-part))
+  ifelse use-custom-sliders = False [
+    ; Logistic relationship when using hill_multiplier
+    let exp-part exp (- k * ((1 / weapons-multiplier) - 1)) ; weapons-multipllier = hill_multiplier is x-axis (want growth to increase as it decreases)
+    set num_morts int(max_morts / (1 + ((max_morts / init_morts) - 1) * exp-part))
+    set num_machguns int(max_machguns / (1 + ((max_machguns / init_machguns) - 1) * exp-part))
+  ] [
+    ; Linear relationship for manual toggling
+;    set num_morts int((max_factor - 1) * weapons-multiplier + init_morts)
+;    set num_machguns int((max_factor - 1) * weapons-multiplier + init_morts)
+    set num_morts int((max_morts - init_morts) * weapons-multiplier + init_morts)
+    set num_machguns int((max_machguns - init_machguns) * weapons-multiplier + init_machguns)
+  ]
 
   ; Machine guns (default 2)
   create-turtles num_machguns [
@@ -485,7 +509,7 @@ to color-patches-with-elevation
       ; set pcolor scale-color brown plabel min-gradient max-gradient
 
       ; Green -> Brown scale
-      let norm-elevation ((elevation-value - min-elevation) / (max-elevation - min-elevation)) / hill_multiplier ; normalize elevation between [0, 1]
+      let norm-elevation ((elevation-value - min-elevation) / (max-elevation - min-elevation)) / steepness-multiplier ; normalize elevation between [0, 1]
 
       ifelse night? [
         ; NIGHT COLORS
@@ -652,7 +676,7 @@ to-report calculate-fire-rate [k min_rate max_rate]
   let min_hill 0.01
   let max_hill 1.25
 
-  let normalized_hill (hill_multiplier - min_hill) / (max_hill - min_hill)
+  let normalized_hill (steepness-multiplier - min_hill) / (max_hill - min_hill)
   let fire_rate min_rate + (max_rate - min_rate) * (1 - normalized_hill ^ k)
   report fire_rate  ; Returns the calculated fire rate
 end
@@ -1196,7 +1220,6 @@ to perform-grenade-bayonet [energy-multiplier]
     ]
   ]
 end
-
 @#$#@#$#@
 GRAPHICS-WINDOW
 253
@@ -1260,10 +1283,10 @@ NIL
 0
 
 BUTTON
-49
-214
-176
-247
+50
+105
+177
+138
 respawn forces
 spawn-forces
 NIL
@@ -1277,10 +1300,10 @@ NIL
 1
 
 SLIDER
-28
-114
-200
-147
+29
+151
+201
+184
 hill_multiplier
 hill_multiplier
 0.01
@@ -1332,10 +1355,10 @@ W
 1
 
 PLOT
-1209
-64
-1409
-214
+1210
+45
+1410
+195
 total un kills
 ticks
 kills
@@ -1350,10 +1373,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot (un-total-kills * troops-per-agent)"
 
 PLOT
-1021
-370
-1181
-490
+1022
+351
+1182
+471
 un artillery kills
 ticks
 kills
@@ -1368,10 +1391,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot un-artilerly-kills * troops-per-agent"
 
 PLOT
-1214
-528
-1414
-678
+1212
+498
+1412
+648
 total pva kills
 ticks
 kills
@@ -1386,10 +1409,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot (pva-soldier-kills * troops-per-agent)"
 
 SLIDER
-28
-160
-200
-193
+29
+197
+201
+230
 hill_cover
 hill_cover
 0.0
@@ -1401,10 +1424,10 @@ NIL
 HORIZONTAL
 
 MONITOR
-40
-322
-173
-367
+31
+471
+164
+516
 # UN machine guns
 num_machguns
 17
@@ -1412,10 +1435,10 @@ num_machguns
 11
 
 MONITOR
-40
-375
-136
-420
+31
+524
+127
+569
 # UN mortars
 num_morts
 17
@@ -1423,10 +1446,10 @@ num_morts
 11
 
 MONITOR
-40
-268
-189
-313
+31
+417
+180
+462
 total sim. time (hours)
 total-time
 2
@@ -1434,10 +1457,10 @@ total-time
 11
 
 PLOT
-1005
-64
-1194
-214
+1006
+45
+1195
+195
 un kill rate (troops/hr)
 ticks
 kill rate
@@ -1452,10 +1475,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot un-kill-rate * troops-per-agent"
 
 PLOT
-1001
-528
-1201
-678
+999
+498
+1199
+648
 pva kill rate (troops/hr)
 ticks
 kill rate
@@ -1470,10 +1493,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot pva-kill-rate * troops-per-agent"
 
 PLOT
-829
-235
-989
-355
+830
+216
+990
+336
 un soldier kills
 ticks
 kills
@@ -1488,10 +1511,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot un-soldier-kills * troops-per-agent"
 
 PLOT
-1020
-235
-1180
-355
+1021
+216
+1181
+336
 un machine gun kills
 ticks
 kills
@@ -1506,10 +1529,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot un-machgun-kills * troops-per-agent"
 
 PLOT
-1211
-235
-1371
-355
+1212
+216
+1372
+336
 un mortar kills
 ticks
 kills
@@ -1524,30 +1547,30 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot un-mortar-kills * troops-per-agent"
 
 TEXTBOX
-799
-502
-949
-521
+797
+472
+947
+491
 PVA:
 15
 0.0
 1
 
 TEXTBOX
-809
-40
-959
-60
+810
+21
+960
+41
 UN:
 16
 0.0
 1
 
 MONITOR
-807
-64
-893
-109
+808
+45
+894
+90
 initial troops
 initial-un-troops
 17
@@ -1555,10 +1578,10 @@ initial-un-troops
 11
 
 MONITOR
-798
-528
-881
-573
+796
+498
+879
+543
 initial troops
 initial-pva-troops
 17
@@ -1566,10 +1589,10 @@ initial-pva-troops
 11
 
 MONITOR
-898
-64
-993
-109
+899
+45
+994
+90
 remaining
 initial-un-troops - (pva-soldier-kills * troops-per-agent)
 17
@@ -1577,10 +1600,10 @@ initial-un-troops - (pva-soldier-kills * troops-per-agent)
 11
 
 MONITOR
-890
-528
-990
-573
+888
+498
+988
+543
 remaining
 initial-pva-troops - (un-total-kills * troops-per-agent)
 17
@@ -1588,10 +1611,10 @@ initial-pva-troops - (un-total-kills * troops-per-agent)
 11
 
 MONITOR
-812
-120
-989
-165
+813
+101
+990
+146
 current un kill rate (troops/hr)
 un-kill-rate * troops-per-agent
 17
@@ -1599,10 +1622,10 @@ un-kill-rate * troops-per-agent
 11
 
 MONITOR
-802
-582
-987
-627
+800
+552
+985
+597
 current pva kill rate (troops/hr)
 pva-kill-rate * troops-per-agent
 17
@@ -1610,15 +1633,56 @@ pva-kill-rate * troops-per-agent
 11
 
 MONITOR
-40
-448
-157
-493
+31
+578
+148
+623
 troops per turtle
 troops-per-agent
 17
 1
 11
+
+SWITCH
+27
+264
+207
+297
+use-custom-sliders
+use-custom-sliders
+1
+1
+-1000
+
+SLIDER
+30
+306
+202
+339
+steepness
+steepness
+0.01
+1.0
+0.5
+0.01
+1
+NIL
+HORIZONTAL
+
+SLIDER
+29
+349
+201
+382
+weapons
+weapons
+0
+1
+0.5
+0.01
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
