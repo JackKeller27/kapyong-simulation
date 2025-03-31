@@ -5,6 +5,11 @@ globals [
   gradient-data
   elevation-data
 
+  ; Multipliers (independent variables)
+  ; Based on hill_multiplier
+  steepness-multiplier
+  weapons-multiplier
+
   ; Patch params
   meters-per-patch
   global-max-patch
@@ -22,6 +27,9 @@ globals [
   initial-un-troops
   troops-per-agent
   max-energy
+
+  un-initial-tiredness
+  un-baseline-tiredness
 
   ; Custom colors
   dark-green
@@ -56,7 +64,7 @@ globals [
 
 ; Patch and turtle variables
 patches-own [ gradient-value elevation-value orig-color]
-turtles-own [movement-speed last-shot-time energy resting?]
+turtles-own [movement-speed last-shot-time energy resting? tiredness]
 
 ; Custom breeds
 breed [rings ring]  ;; Pulsing effect while resting
@@ -125,7 +133,7 @@ to compute-patch-data-from-scratch
       ]
 
       ; Set the gradient value for the patch
-      set gradient-value avg-gradient * hill_multiplier
+      set gradient-value avg-gradient * steepness-multiplier ; hill_multiplier
       set plabel avg-gradient
       set plabel-color black
     ]
@@ -151,7 +159,7 @@ to compute-patch-data-from-scratch
       ; Set the gradient value for the patch
 
       ; Store raw elevation in patch variable (not scaled)
-      set elevation-value avg-elevation * hill_multiplier
+      set elevation-value avg-elevation * steepness-multiplier ; hill_multiplier
     ]
   ]
 
@@ -212,8 +220,8 @@ to import-patch-data
       ]
 
     ask patch px py [
-      set elevation-value (elevation * hill_multiplier)
-      set gradient-value (gradient * hill_multiplier)
+      set elevation-value (elevation * steepness-multiplier) ; * hill_multiplier
+      set gradient-value (gradient * steepness-multiplier) ; * hill_multiplier
     ]
   ]
 
@@ -234,12 +242,32 @@ to setup
 ;  set num-patches-x max-pxcor * 2 + 1 ; + 1 accounts for patch 00
 ;  set num-patches-y max-pycor * 2 + 1 ; + 1 accounts for patch 00
 
+
+  ; Figure out whether we want to toggle hill steepness, weapon quantity, or both
+  ifelse use-custom-sliders [
+    set steepness-multiplier steepness
+    set weapons-multiplier weapons
+  ] [
+    set steepness-multiplier hill_multiplier
+    set weapons-multiplier hill_multiplier
+  ]
+
   ; Set turtle params
   set initial-pva-troops 2000
   set initial-un-troops 100
   set troops-per-agent 5
   set max-energy 100
+  set last-barrage 0
 
+  ; UN tiredness stuff
+  ; tiredness lies in range [un-baseline-tiredness, 100]
+  set un-baseline-tiredness 10 ; never go below this level of tiredness
+  set un-initial-tiredness 10 + 90 * (0.6 * steepness-multiplier + 0.4 * weapons-multiplier) ; steepness contributes 60%, weapons 40%
+  ask turtles with [color = "white"] [
+    ; initialize tiredness values for UN troops
+    set tiredness un-initial-tiredness
+  ]
+  print un-initial-tiredness
 
   ; Set custom colors
   set light-green 66
@@ -435,10 +463,19 @@ to spawn-forces
   let max_morts max_factor * init_morts
   let max_machguns max_factor * init_machguns
   let k 2.5  ;; Growth rate parameter
-  let exp-part exp (- k * ((1 / hill_multiplier) - 1)) ; hill_multiplier is x-axis (want growth to increase as it decreases)
 
-  set num_morts int(max_morts / (1 + ((max_morts / init_morts) - 1) * exp-part))
-  set num_machguns int(max_machguns / (1 + ((max_machguns / init_machguns) - 1) * exp-part))
+  ifelse use-custom-sliders = False [
+    ; Logistic relationship when using hill_multiplier
+    let exp-part exp (- k * ((1 / weapons-multiplier) - 1)) ; weapons-multipllier = hill_multiplier is x-axis (want growth to increase as it decreases)
+    set num_morts int(max_morts / (1 + ((max_morts / init_morts) - 1) * exp-part))
+    set num_machguns int(max_machguns / (1 + ((max_machguns / init_machguns) - 1) * exp-part))
+  ] [
+    ; Linear relationship for manual toggling
+;    set num_morts int((max_factor - 1) * weapons-multiplier + init_morts)
+;    set num_machguns int((max_factor - 1) * weapons-multiplier + init_morts)
+    set num_morts int((max_morts - init_morts) * weapons-multiplier + init_morts)
+    set num_machguns int((max_machguns - init_machguns) * weapons-multiplier + init_machguns)
+  ]
 
   ; Machine guns (default 2)
   create-turtles num_machguns [
@@ -485,7 +522,7 @@ to color-patches-with-elevation
       ; set pcolor scale-color brown plabel min-gradient max-gradient
 
       ; Green -> Brown scale
-      let norm-elevation ((elevation-value - min-elevation) / (max-elevation - min-elevation)) / hill_multiplier ; normalize elevation between [0, 1]
+      let norm-elevation ((elevation-value - min-elevation) / (max-elevation - min-elevation)) / steepness-multiplier ; normalize elevation between [0, 1]
 
       ifelse night? [
         ; NIGHT COLORS
@@ -549,7 +586,7 @@ end
 ; ########################################################################################################################################
 
 
-to un-turtle-shoot-at-pva-turtle [energy-multiplier]
+to un-turtle-shoot-at-pva-turtle [tiredness-multiplier]
   let shooting-range 100  ;; Maximum shooting distance
   let effectiveness 1.22 ; lower is worse
   let fire-rate calculate-fire-rate 4 1 20 ; k min-rate max-rate
@@ -560,9 +597,11 @@ to un-turtle-shoot-at-pva-turtle [energy-multiplier]
     if target != nobody and [distance target] of self <= shooting-range [
       let prob compute-hit-probability-for-un self target effectiveness 30 hill_cover ;; params: shooter, target, bullet_effectiveness, bullet_range, cover_factor
 
-      ;; Account for energy level
-      ;; set prob (prob * energy-multiplier)
-      ;; print energy-multiplier
+      ; Account for tiredness
+;       print tiredness-multiplier
+;      print prob
+      set prob un-hit-probability-with-tiredness prob tiredness-multiplier
+;      print prob
       if random-float 1 < prob and prob > 0.001 [
         set un-soldier-kills un-soldier-kills + 1
         ask target [ die ] ;; Kill black agent if hit
@@ -652,9 +691,20 @@ to-report calculate-fire-rate [k min_rate max_rate]
   let min_hill 0.01
   let max_hill 1.25
 
-  let normalized_hill (hill_multiplier - min_hill) / (max_hill - min_hill)
+  let normalized_hill (steepness-multiplier - min_hill) / (max_hill - min_hill)
   let fire_rate min_rate + (max_rate - min_rate) * (1 - normalized_hill ^ k)
   report fire_rate  ; Returns the calculated fire rate
+end
+
+to-report un-hit-probability-with-tiredness [base-prob tiredness-multiplier]
+  ; exponential decay (stronger impact on prob with higher tiredness)
+  ; tiredness = 0.1 (well rested) -> 1 (no penalty)
+  ; tiredness = 0.5 (decently rested) -> 0.67 (33% penalty)
+  ; tiredness = 1.0 (completely exhausted) -> 0.41 (59% penalty)
+
+  let base-tiredness un-baseline-tiredness / 100
+;  print(exp(baseline-tiredness - tiredness-multiplier))
+  report base-prob * exp(base-tiredness - tiredness-multiplier)
 end
 
 
@@ -699,7 +749,7 @@ to go
     ]
   ]
 
-  ; Machine gun fire (every tick)
+  ; Machine gun fire
   if ticks mod  5 = 0 [
     ask turtles with [shape = "machine-gun"] [
       fire-machine-gun
@@ -714,22 +764,28 @@ to go
 
   ; UN turtles
   ask turtles with [color = white] [
-    ; Check if resting
-    ifelse resting? = true [
-      rest
-    ]
-    [
-      ; Deplete energy and get energy multiplier (energy / max-energy)
-      let energy-multiplier deplete-energy self
+    ; Update tiredness
+    let tiredness-multiplier update-un-tiredness self
+;    print tiredness-multiplier
+
+;    ; Check if resting
+;    ifelse resting? = true [
+;      rest
+;    ]
+;    [
+;      ; Deplete energy and get energy multiplier (energy / max-energy)
+;      let energy-multiplier deplete-energy self
 
       ; Shoot
       if ticks mod 5 = 0 [
-        un-turtle-shoot-at-pva-turtle energy-multiplier
+        un-turtle-shoot-at-pva-turtle tiredness-multiplier
       ]
 
       ; Close quarters combat: throw grenades or bayonet rush
-       perform-grenade-bayonet energy-multiplier
-    ]
+       if ticks mod 5 = 0 [
+         perform-grenade-bayonet tiredness-multiplier
+       ]
+;    ]
   ]
 
   ; PVA turtles
@@ -881,9 +937,9 @@ end
 
 to-report deplete-energy [soldier]
   let slope [gradient-value] of soldier
-  let normalized-slope (slope / max-gradient)  ;; Between [0,1]
-  let k 1.1                       ;; Energy loss per slope unit (movement)
-  let m 0.015                       ;; Base energy loss per tick (shooting)
+  let normalized-slope max (list (slope / max-gradient) 0.3)
+  let k 1.1                       ;; Energy loss per slope unit (steepness)
+  let m 0.015                       ;; Base energy loss per tick (flat ground)
 
   ;; Compute new energy level
   ask soldier [
@@ -938,6 +994,22 @@ to fade-rings
 end
 
 
+to-report update-un-tiredness [soldier]
+  let un-tiredness-multiplier 0
+
+  ask soldier [
+    ; logistic decay function (tiredness initially decreases at a slow rate, then at a faster rate, and then slows back down)
+    ; tiredness lies in range [un-baseline-tiredness, 100]
+    let decay-rate 0.005 - 0.004 * (0.6 * steepness-multiplier + 0.4 * weapons-multiplier) ; steepness contributes 60%, weapons 40%
+    let t0 600  ; midpoint where rate is highest (tiredness decreases fastest)
+
+    ; update tiredness
+    set tiredness un-baseline-tiredness + (un-initial-tiredness - un-baseline-tiredness) / (1 + exp(- decay-rate * (ticks - t0)))
+    set un-tiredness-multiplier tiredness / 100
+  ]
+
+  report un-tiredness-multiplier ; return UN tiredness as a percentage
+end
 
 ; ########################################################################################################################################
 ;                                                             Artillery Method
@@ -996,10 +1068,10 @@ end
 
 ; ARTILLERY BARRAGE
 to perform-artillery-barrage
-  ;; Get the patches within a radius of 25 from the UN troops
+  ;; Get the patches within a radius of 15 from the UN troops
   let un-x [pxcor] of global-max-patch
   let un-y [pycor] of global-max-patch
-  let center-patches patches with [distancexy un-x un-y <= 25]
+  let center-patches patches with [distancexy un-x un-y <= 15]
 
   ;; Count total troops and PVA troops in the center area
   let total-troops count turtles with [member? patch-here center-patches]
@@ -1013,8 +1085,8 @@ to perform-artillery-barrage
     ;; Call artillery strike on center patches
     ; Do 5 mini waves of strikes
     repeat 5 [
-      ; Sample 5 random patches within strike zone (w/out replacement)
-      let strike-patches n-of 5 center-patches
+      ; Sample random patches within strike zone (with replacement)
+      let strike-patches n-of 350 center-patches
       ask strike-patches [
         let pva-zone turtles-here with [color = black]  ;; PVA troops
         let un-zone turtles-here with [color = white]    ;; UN troops
@@ -1022,6 +1094,7 @@ to perform-artillery-barrage
         ;; 90% chance to die for PVA
         ask pva-zone [
           if random-float 1.0 < 0.9 [
+            print "pva killed from barrage"
             set un-artilerly-kills un-artilerly-kills + 1
             die
           ]
@@ -1030,6 +1103,7 @@ to perform-artillery-barrage
         ;; 0.1% chance to die for UN
         ask un-zone [
           if random-float 1.0 < 0.001 [
+;            print "un killed from barrage"
             die
           ]
         ]
@@ -1044,8 +1118,8 @@ to perform-artillery-barrage
       ;; Reset the red effect after 3 ticks
       set reset-artillery-timers 3
 
-    ; Remove sampled patches from pool
-    set center-patches center-patches with [not member? self strike-patches]
+;    ; Remove sampled patches from pool
+;    set center-patches center-patches with [not member? self strike-patches]
     ]
   ]
 end
@@ -1143,11 +1217,11 @@ end
 ; 2000 meter range (111 patches)
 to fire-machine-gun
   let shooting-range 60  ;; Maximum shooting distance
-  let num-shots 38  ;; Number of shots per tick
+  let num-shots   ;; Max fire rate
   let effectiveness 0.5 ; lower is worse
 
-  let fire-rate calculate-fire-rate 4 (num-shots / 2) num-shots
-;  print fire-rate
+  let fire-rate calculate-fire-rate 4 (num-shots / 2) num-shots ; k min-rate max-rate
+  print fire-rate
 
   ;; Fire num-shots times per tick
   repeat fire-rate [
@@ -1179,8 +1253,8 @@ end
 ; ########################################################################################################################################
 ;                                                             Close Quarters Combat: Grenades & Bayonet
 ; ########################################################################################################################################
-to perform-grenade-bayonet [energy-multiplier]
-  let close-range 1  ;; We'll say grenade/bayonet is effective when they're in the same patch
+to perform-grenade-bayonet [tiredness-multiplier]
+  let close-range 0.5  ;; We'll say grenade/bayonet is effective when they're in the same patch
 
   ;; Find all nearby turtles within the close-range threshold
   let nearby-turtles turtles in-radius close-range
@@ -1188,15 +1262,15 @@ to perform-grenade-bayonet [energy-multiplier]
   ask nearby-turtles [
     if color = black [  ;; If enemy is a PVA soldier
       let prob random-float 1.0
-      if prob < 0.6 [  ;; high chance PVA soldier dies (lower accounting for energy)
-        print("grenade/bayonet!")
+      set prob un-hit-probability-with-tiredness prob tiredness-multiplier
+      if prob < 0.4 [  ;; fairly high chance PVA soldier dies (lower accounting for tiredness)
+;        print("grenade/bayonet!")
         set un-soldier-kills un-soldier-kills + 1
         die
       ]
     ]
   ]
 end
-
 @#$#@#$#@
 GRAPHICS-WINDOW
 253
@@ -1260,10 +1334,10 @@ NIL
 0
 
 BUTTON
-49
-214
-176
-247
+50
+105
+177
+138
 respawn forces
 spawn-forces
 NIL
@@ -1277,15 +1351,15 @@ NIL
 1
 
 SLIDER
-28
-114
-200
-147
+29
+151
+201
+184
 hill_multiplier
 hill_multiplier
 0.01
 1.25
-0.01
+1.0
 0.01
 1
 NIL
@@ -1332,10 +1406,10 @@ W
 1
 
 PLOT
-1209
-64
-1409
-214
+1210
+45
+1410
+195
 total un kills
 ticks
 kills
@@ -1350,10 +1424,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot (un-total-kills * troops-per-agent)"
 
 PLOT
-1021
-370
-1181
-490
+1022
+351
+1182
+471
 un artillery kills
 ticks
 kills
@@ -1368,10 +1442,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot un-artilerly-kills * troops-per-agent"
 
 PLOT
-1214
-528
-1414
-678
+1212
+498
+1412
+648
 total pva kills
 ticks
 kills
@@ -1386,10 +1460,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot (pva-soldier-kills * troops-per-agent)"
 
 SLIDER
-28
-160
-200
-193
+29
+197
+201
+230
 hill_cover
 hill_cover
 0.0
@@ -1401,10 +1475,10 @@ NIL
 HORIZONTAL
 
 MONITOR
-40
-322
-173
-367
+31
+471
+164
+516
 # UN machine guns
 num_machguns
 17
@@ -1412,10 +1486,10 @@ num_machguns
 11
 
 MONITOR
-40
-375
-136
-420
+31
+524
+127
+569
 # UN mortars
 num_morts
 17
@@ -1423,10 +1497,10 @@ num_morts
 11
 
 MONITOR
-40
-268
-189
-313
+31
+417
+180
+462
 total sim. time (hours)
 total-time
 2
@@ -1434,10 +1508,10 @@ total-time
 11
 
 PLOT
-1005
-64
-1194
-214
+1006
+45
+1195
+195
 un kill rate (troops/hr)
 ticks
 kill rate
@@ -1452,10 +1526,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot un-kill-rate * troops-per-agent"
 
 PLOT
-1001
-528
-1201
-678
+999
+498
+1199
+648
 pva kill rate (troops/hr)
 ticks
 kill rate
@@ -1470,10 +1544,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot pva-kill-rate * troops-per-agent"
 
 PLOT
-829
-235
-989
-355
+830
+216
+990
+336
 un soldier kills
 ticks
 kills
@@ -1488,10 +1562,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot un-soldier-kills * troops-per-agent"
 
 PLOT
-1020
-235
-1180
-355
+1021
+216
+1181
+336
 un machine gun kills
 ticks
 kills
@@ -1506,10 +1580,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot un-machgun-kills * troops-per-agent"
 
 PLOT
-1211
-235
-1371
-355
+1212
+216
+1372
+336
 un mortar kills
 ticks
 kills
@@ -1524,30 +1598,30 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot un-mortar-kills * troops-per-agent"
 
 TEXTBOX
-799
-502
-949
-521
+797
+472
+947
+491
 PVA:
 15
 0.0
 1
 
 TEXTBOX
-809
-40
-959
-60
+810
+21
+960
+41
 UN:
 16
 0.0
 1
 
 MONITOR
-807
-64
-893
-109
+808
+45
+894
+90
 initial troops
 initial-un-troops
 17
@@ -1555,10 +1629,10 @@ initial-un-troops
 11
 
 MONITOR
-798
-528
-881
-573
+796
+498
+879
+543
 initial troops
 initial-pva-troops
 17
@@ -1566,10 +1640,10 @@ initial-pva-troops
 11
 
 MONITOR
-898
-64
-993
-109
+899
+45
+994
+90
 remaining
 initial-un-troops - (pva-soldier-kills * troops-per-agent)
 17
@@ -1577,10 +1651,10 @@ initial-un-troops - (pva-soldier-kills * troops-per-agent)
 11
 
 MONITOR
-890
-528
-990
-573
+888
+498
+988
+543
 remaining
 initial-pva-troops - (un-total-kills * troops-per-agent)
 17
@@ -1588,10 +1662,10 @@ initial-pva-troops - (un-total-kills * troops-per-agent)
 11
 
 MONITOR
-812
-120
-989
-165
+813
+101
+990
+146
 current un kill rate (troops/hr)
 un-kill-rate * troops-per-agent
 17
@@ -1599,10 +1673,10 @@ un-kill-rate * troops-per-agent
 11
 
 MONITOR
-802
-582
-987
-627
+800
+552
+985
+597
 current pva kill rate (troops/hr)
 pva-kill-rate * troops-per-agent
 17
@@ -1610,15 +1684,56 @@ pva-kill-rate * troops-per-agent
 11
 
 MONITOR
-40
-448
-157
-493
-troops per turtle
+31
+578
+148
+623
+troops per agent
 troops-per-agent
 17
 1
 11
+
+SWITCH
+27
+264
+207
+297
+use-custom-sliders
+use-custom-sliders
+0
+1
+-1000
+
+SLIDER
+30
+306
+202
+339
+steepness
+steepness
+0.01
+1.0
+1.0
+0.01
+1
+NIL
+HORIZONTAL
+
+SLIDER
+29
+349
+201
+382
+weapons
+weapons
+0
+1
+0.0
+0.01
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
