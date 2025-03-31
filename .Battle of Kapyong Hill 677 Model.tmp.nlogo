@@ -656,11 +656,9 @@ to-report compute-hit-probability-for-pva [shooter target bullet_effectiveness b
   ifelse dist <= bullet_range [
     set hit-probability 1 - (1 - hit-probability-at-25) * exp (-5 * (bullet_range - dist) / bullet_range)
   ] [
-    set hit-probability (1 - exp (-1 * R / (-1 * r-theta)) * exp ((-1 * dist) / D)
+    set hit-probability (1 - exp (-1 * R / (-1 * r-theta))) * exp ((-1 * dist) / D)
   ]
-  if hit-probability > 0.001 [
-    print r-theta
-  ]
+
   report hit-probability
 end
 
