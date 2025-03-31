@@ -28,6 +28,9 @@ globals [
   troops-per-agent
   max-energy
 
+  un-initial-tiredness
+  un-baseline-tiredness
+
   ; Custom colors
   dark-green
   light-green
@@ -61,7 +64,7 @@ globals [
 
 ; Patch and turtle variables
 patches-own [ gradient-value elevation-value orig-color]
-turtles-own [movement-speed last-shot-time energy resting?]
+turtles-own [movement-speed last-shot-time energy resting? tiredness]
 
 ; Custom breeds
 breed [rings ring]  ;; Pulsing effect while resting
@@ -255,6 +258,16 @@ to setup
   set troops-per-agent 5
   set max-energy 100
   set last-barrage 0
+
+  ; UN tiredness stuff
+  ; tiredness lies in range [un-baseline-tiredness, 100]
+  set un-baseline-tiredness 10 ; never go below this level of tiredness
+  set un-initial-tiredness 10 + 90 * (0.6 * steepness-multiplier + 0.4 * weapons-multiplier) ; steepness contributes 60%, weapons 40%
+  ask turtles with [color = "white"] [
+    ; initialize tiredness values for UN troops
+    set tiredness un-initial-tiredness
+  ]
+  print un-initial-tiredness
 
   ; Set custom colors
   set light-green 66
@@ -573,7 +586,7 @@ end
 ; ########################################################################################################################################
 
 
-to un-turtle-shoot-at-pva-turtle [energy-multiplier]
+to un-turtle-shoot-at-pva-turtle [tiredness-multiplier]
   let shooting-range 100  ;; Maximum shooting distance
   let effectiveness 1.22 ; lower is worse
   let fire-rate calculate-fire-rate 4 1 20 ; k min-rate max-rate
@@ -584,9 +597,11 @@ to un-turtle-shoot-at-pva-turtle [energy-multiplier]
     if target != nobody and [distance target] of self <= shooting-range [
       let prob compute-hit-probability-for-un self target effectiveness 30 hill_cover ;; params: shooter, target, bullet_effectiveness, bullet_range, cover_factor
 
-      ;; Account for energy level
-      ;; set prob (prob * energy-multiplier)
-      ;; print energy-multiplier
+      ; Account for tiredness
+;       print tiredness-multiplier
+;      print prob
+      set prob un-hit-probability-with-tiredness prob tiredness-multiplier
+;      print prob
       if random-float 1 < prob and prob > 0.001 [
         set un-soldier-kills un-soldier-kills + 1
         ask target [ die ] ;; Kill black agent if hit
@@ -681,6 +696,17 @@ to-report calculate-fire-rate [k min_rate max_rate]
   report fire_rate  ; Returns the calculated fire rate
 end
 
+to-report un-hit-probability-with-tiredness [base-prob tiredness-multiplier]
+  ; exponential decay (stronger impact on prob with higher tiredness)
+  ; tiredness = 0.1 (well rested) -> 1 (no penalty)
+  ; tiredness = 0.5 (decently rested) -> 0.67 (33% penalty)
+  ; tiredness = 1.0 (completely exhausted) -> 0.41 (59% penalty)
+
+  let base-tiredness un-baseline-tiredness / 100
+;  print(exp(baseline-tiredness - tiredness-multiplier))
+  report base-prob * exp(base-tiredness - tiredness-multiplier)
+end
+
 
 ; ########################################################################################################################################
 ;                                                             GO METHOD
@@ -738,22 +764,28 @@ to go
 
   ; UN turtles
   ask turtles with [color = white] [
-    ; Check if resting
-    ifelse resting? = true [
-      rest
-    ]
-    [
-      ; Deplete energy and get energy multiplier (energy / max-energy)
-      let energy-multiplier deplete-energy self
+    ; Update tiredness
+    let tiredness-multiplier update-un-tiredness self
+;    print tiredness-multiplier
+
+;    ; Check if resting
+;    ifelse resting? = true [
+;      rest
+;    ]
+;    [
+;      ; Deplete energy and get energy multiplier (energy / max-energy)
+;      let energy-multiplier deplete-energy self
 
       ; Shoot
       if ticks mod 5 = 0 [
-        un-turtle-shoot-at-pva-turtle energy-multiplier
+        un-turtle-shoot-at-pva-turtle tiredness-multiplier
       ]
 
       ; Close quarters combat: throw grenades or bayonet rush
-       perform-grenade-bayonet energy-multiplier
-    ]
+       if ticks mod 5 = 0 [
+         perform-grenade-bayonet tiredness-multiplier
+       ]
+;    ]
   ]
 
   ; PVA turtles
@@ -905,9 +937,9 @@ end
 
 to-report deplete-energy [soldier]
   let slope [gradient-value] of soldier
-  let normalized-slope (slope / max-gradient)  ;; Between [0,1]
-  let k 1.1                       ;; Energy loss per slope unit (movement)
-  let m 0.015                       ;; Base energy loss per tick (shooting)
+  let normalized-slope max (list (slope / max-gradient) 0.3)
+  let k 1.1                       ;; Energy loss per slope unit (steepness)
+  let m 0.015                       ;; Base energy loss per tick (flat ground)
 
   ;; Compute new energy level
   ask soldier [
@@ -962,6 +994,22 @@ to fade-rings
 end
 
 
+to-report update-un-tiredness [soldier]
+  let un-tiredness-multiplier 0
+
+  ask soldier [
+    ; logistic decay function (tiredness initially decreases at a slow rate, then at a faster rate, and then slows back down)
+    ; tiredness lies in range [un-baseline-tiredness, 100]
+    let decay-rate 0.005 - 0.004 * (0.6 * steepness-multiplier + 0.4 * weapons-multiplier) ; steepness contributes 60%, weapons 40%
+    let t0 600  ; midpoint where rate is highest (tiredness decreases fastest)
+
+    ; update tiredness
+    set tiredness un-baseline-tiredness + (un-initial-tiredness - un-baseline-tiredness) / (1 + exp(- decay-rate * (ticks - t0)))
+    set un-tiredness-multiplier tiredness / 100
+  ]
+
+  report un-tiredness-multiplier ; return UN tiredness as a percentage
+end
 
 ; ########################################################################################################################################
 ;                                                             Artillery Method
@@ -1020,10 +1068,10 @@ end
 
 ; ARTILLERY BARRAGE
 to perform-artillery-barrage
-  ;; Get the patches within a radius of 25 from the UN troops
+  ;; Get the patches within a radius of 15 from the UN troops
   let un-x [pxcor] of global-max-patch
   let un-y [pycor] of global-max-patch
-  let center-patches patches with [distancexy un-x un-y <= 25]
+  let center-patches patches with [distancexy un-x un-y <= 15]
 
   ;; Count total troops and PVA troops in the center area
   let total-troops count turtles with [member? patch-here center-patches]
@@ -1037,8 +1085,8 @@ to perform-artillery-barrage
     ;; Call artillery strike on center patches
     ; Do 5 mini waves of strikes
     repeat 5 [
-      ; Sample 5 random patches within strike zone (w/out replacement)
-      let strike-patches n-of 5 center-patches
+      ; Sample random patches within strike zone (with replacement)
+      let strike-patches n-of 350 center-patches
       ask strike-patches [
         let pva-zone turtles-here with [color = black]  ;; PVA troops
         let un-zone turtles-here with [color = white]    ;; UN troops
@@ -1046,6 +1094,7 @@ to perform-artillery-barrage
         ;; 90% chance to die for PVA
         ask pva-zone [
           if random-float 1.0 < 0.9 [
+            print "pva killed from barrage"
             set un-artilerly-kills un-artilerly-kills + 1
             die
           ]
@@ -1054,6 +1103,7 @@ to perform-artillery-barrage
         ;; 0.1% chance to die for UN
         ask un-zone [
           if random-float 1.0 < 0.001 [
+;            print "un killed from barrage"
             die
           ]
         ]
@@ -1068,8 +1118,8 @@ to perform-artillery-barrage
       ;; Reset the red effect after 3 ticks
       set reset-artillery-timers 3
 
-    ; Remove sampled patches from pool
-    set center-patches center-patches with [not member? self strike-patches]
+;    ; Remove sampled patches from pool
+;    set center-patches center-patches with [not member? self strike-patches]
     ]
   ]
 end
@@ -1167,10 +1217,10 @@ end
 ; 2000 meter range (111 patches)
 to fire-machine-gun
   let shooting-range 60  ;; Maximum shooting distance
-  let num-shots 38  ;; Number of shots per tick
+  let num-shots 48  ;; Fires once every 5 ticks (25 sec)
   let effectiveness 0.5 ; lower is worse
 
-  let fire-rate calculate-fire-rate 4 (num-shots / 2) num-shots
+  let fire-rate calculate-fire-rate 4 (num-shots / 2) num-shots ; k min-rate max-rate
 ;  print fire-rate
 
   ;; Fire num-shots times per tick
@@ -1203,8 +1253,8 @@ end
 ; ########################################################################################################################################
 ;                                                             Close Quarters Combat: Grenades & Bayonet
 ; ########################################################################################################################################
-to perform-grenade-bayonet [energy-multiplier]
-  let close-range 1  ;; We'll say grenade/bayonet is effective when they're in the same patch
+to perform-grenade-bayonet [tiredness-multiplier]
+  let close-range 0.5  ;; We'll say grenade/bayonet is effective when they're in the same patch
 
   ;; Find all nearby turtles within the close-range threshold
   let nearby-turtles turtles in-radius close-range
@@ -1212,8 +1262,9 @@ to perform-grenade-bayonet [energy-multiplier]
   ask nearby-turtles [
     if color = black [  ;; If enemy is a PVA soldier
       let prob random-float 1.0
-      if prob < 0.6 [  ;; high chance PVA soldier dies (lower accounting for energy)
-        print("grenade/bayonet!")
+      set prob un-hit-probability-with-tiredness prob tiredness-multiplier
+      if prob < 0.4 [  ;; fairly high chance PVA soldier dies (lower accounting for tiredness)
+;        print("grenade/bayonet!")
         set un-soldier-kills un-soldier-kills + 1
         die
       ]
@@ -1637,7 +1688,7 @@ MONITOR
 578
 148
 623
-troops per turtle
+troops per agent
 troops-per-agent
 17
 1
@@ -1650,7 +1701,7 @@ SWITCH
 297
 use-custom-sliders
 use-custom-sliders
-1
+0
 1
 -1000
 
@@ -1663,7 +1714,7 @@ steepness
 steepness
 0.01
 1.0
-0.5
+0.01
 0.01
 1
 NIL
@@ -1678,7 +1729,7 @@ weapons
 weapons
 0
 1
-0.5
+0.0
 0.01
 1
 NIL
