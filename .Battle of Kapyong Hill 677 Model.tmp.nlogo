@@ -267,7 +267,6 @@ to setup
     ; initialize tiredness values for UN troops
     set tiredness un-initial-tiredness
   ]
-  print un-initial-tiredness
 
   ; Set custom colors
   set light-green 66
@@ -627,6 +626,9 @@ to pva-turtle-shoot-at-un-turtle [energy-multiplier]
 
     if random-float 1 < prob and prob > 0.001 [
       ;; print "white died"
+      ;; print prob
+      ;; print [distance target] of self
+      ;; print ([elevation-value] of target - [elevation-value] of self) / ([distance target] of self * meters-per-patch)
       set pva-soldier-kills pva-soldier-kills + 1
       ask target [ die ]  ;; Kill white agent if hit
     ]
@@ -648,15 +650,17 @@ to-report compute-hit-probability-for-pva [shooter target bullet_effectiveness b
   let r-theta (4 - ((theta * 100) / 15)) ^ 2
   let R bullet_effectiveness
   let D bullet_range
-  let hit-probability-at-25 (exp (-1 * R / r-theta)) * exp ((-1 * dist) / D)
+  let hit-probability-at-25 (exp (-1 * R / (-1 * r-theta))) * exp ((-1 * dist) / D)
 
   let hit-probability 0
   ifelse dist <= bullet_range [
     set hit-probability 1 - (1 - hit-probability-at-25) * exp (-5 * (bullet_range - dist) / bullet_range)
   ] [
-    set hit-probability (1 - exp (-1 * R / r-theta)) * exp ((-1 * dist) / D)
+    set hit-probability (1 - exp (-1 * R / (-1 * r-theta)) * exp ((-1 * dist) / D)
   ]
-
+  if hit-probability > 0.001 [
+    print r-theta
+  ]
   report hit-probability
 end
 
@@ -1217,11 +1221,10 @@ end
 ; 2000 meter range (111 patches)
 to fire-machine-gun
   let shooting-range 60  ;; Maximum shooting distance
-  let num-shots   ;; Max fire rate
+  let num-shots 48  ;; Max fire rate (per tick)
   let effectiveness 0.5 ; lower is worse
 
   let fire-rate calculate-fire-rate 4 (num-shots / 2) num-shots ; k min-rate max-rate
-  print fire-rate
 
   ;; Fire num-shots times per tick
   repeat fire-rate [
@@ -1359,7 +1362,7 @@ hill_multiplier
 hill_multiplier
 0.01
 1.25
-1.0
+0.25
 0.01
 1
 NIL
@@ -1701,7 +1704,7 @@ SWITCH
 297
 use-custom-sliders
 use-custom-sliders
-0
+1
 1
 -1000
 
@@ -1729,7 +1732,7 @@ weapons
 weapons
 0
 1
-0.0
+1.0
 0.01
 1
 NIL
