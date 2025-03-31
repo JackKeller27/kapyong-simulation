@@ -749,7 +749,7 @@ to go
     ]
   ]
 
-  ; Machine gun fire (every tick)
+  ; Machine gun fire
   if ticks mod  5 = 0 [
     ask turtles with [shape = "machine-gun"] [
       fire-machine-gun
@@ -1086,14 +1086,14 @@ to perform-artillery-barrage
     ; Do 5 mini waves of strikes
     repeat 5 [
       ; Sample random patches within strike zone (with replacement)
-      let strike-patches n-of  center-patches
+      let strike-patches n-of 350 center-patches
       ask strike-patches [
         let pva-zone turtles-here with [color = black]  ;; PVA troops
         let un-zone turtles-here with [color = white]    ;; UN troops
 
         ;; 90% chance to die for PVA
         ask pva-zone [
-          if random-float 1.0 < 0.99 [
+          if random-float 1.0 < 0.9 [
             print "pva killed from barrage"
             set un-artilerly-kills un-artilerly-kills + 1
             die
@@ -1217,11 +1217,11 @@ end
 ; 2000 meter range (111 patches)
 to fire-machine-gun
   let shooting-range 60  ;; Maximum shooting distance
-  let num-shots 48  ;; Fires once every 5 ticks (25 sec)
+  let num-shots   ;; Max fire rate
   let effectiveness 0.5 ; lower is worse
 
   let fire-rate calculate-fire-rate 4 (num-shots / 2) num-shots ; k min-rate max-rate
-;  print fire-rate
+  print fire-rate
 
   ;; Fire num-shots times per tick
   repeat fire-rate [
@@ -1714,7 +1714,7 @@ steepness
 steepness
 0.01
 1.0
-0.01
+1.0
 0.01
 1
 NIL
