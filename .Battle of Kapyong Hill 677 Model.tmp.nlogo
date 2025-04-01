@@ -266,7 +266,8 @@ to setup
   ; UN tiredness stuff
   ; tiredness lies in range [un-baseline-tiredness, 1.0]
   set un-baseline-tiredness 0.1 ; never go below this level of tiredness
-  set un-initial-tiredness min (list (0.1 + 0.9 * (0.6 * steepness-multiplier + 0.4 * weapons-multiplier)) 1.0) ; steepness contributes 60%, weapons 40%
+;  set un-initial-tiredness min (list (0.1 + 0.9 * (0.6 * steepness-multiplier + 0.4 * weapons-multiplier)) 1.0) ; steepness contributes 60%, weapons 40%
+  set un-initial-tiredness min (list (0.1 + 0.9 * (max (list sqrt(steepness-multiplier) 0.3) * max (list sqrt(weapons-multiplier) 0.5))) 1.0)
   set un-tiredness un-initial-tiredness
 
   ; Set custom colors
@@ -918,8 +919,8 @@ to check-end-conditions
   let remaining-pva count turtles with [color = black]
   let remaining-un count turtles with [color = white]
 
-  if (remaining-pva < 0.1 * initial-pva-count) [
-
+;  if (remaining-pva < 0.1 * initial-pva-count) [
+  if (remaining-pva * troops-per-agent < 800 and random 1.0 < 0.1) [
     print(initial-pva-count)
     print(remaining-pva)
     print(0.1 * initial-pva-count)
@@ -1005,11 +1006,11 @@ end
 to update-un-tiredness
   ; logistic decay function (tiredness initially decreases at a slow rate, then at a faster rate, and then slows back down)
   ; tiredness lies in range [un-baseline-tiredness, 100]
-  let decay-rate 0.005 - 0.004 * (0.6 * steepness-multiplier + 0.4 * weapons-multiplier) ; steepness contributes 60%, weapons 40%
+  let decay-rate 0.005 - 0.004 * (0.1 + 0.9 * (max (list sqrt(steepness-multiplier) 0.3) * max (list sqrt(weapons-multiplier) 0.5)))
   let t0 600  ; midpoint where rate is highest (tiredness decreases fastest)
 
   ; update tiredness
-  set un-tiredness un-baseline-tiredness + (un-initial-tiredness - un-baseline-tiredness) / (1 + exp(decay-rate * (ticks - t0)))
+  set un-tiredness un-baseline-tiredness + (un-initial-tiredness - un-baseline-tiredness) / (1 + exp(-decay-rate * (ticks - t0)))
 end
 
 ; ########################################################################################################################################
@@ -1733,7 +1734,7 @@ steepness
 steepness
 0.01
 1.25
-1.0
+0.93
 0.01
 1
 NIL
@@ -1748,7 +1749,7 @@ weapons
 weapons
 0
 1
-0.25
+0.98
 0.01
 1
 NIL
