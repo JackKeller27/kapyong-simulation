@@ -267,11 +267,6 @@ to setup
   ; tiredness lies in range [un-baseline-tiredness, 1.0]
   set un-baseline-tiredness 0.1 ; never go below this level of tiredness
   set un-initial-tiredness min (list (0.1 + 0.9 * (0.6 * steepness-multiplier + 0.4 * weapons-multiplier)) 1.0) ; steepness contributes 60%, weapons 40%
-;  ask turtles with [color = "white" or shape = "mortar" or shape = "machine-gun"] [
-;    ; initialize tiredness values for UN troops
-;    set tiredness un-initial-tiredness
-;  ]
-  ; initialize tiredness
   set un-tiredness un-initial-tiredness
 
   ; Set custom colors
@@ -596,6 +591,10 @@ to un-turtle-shoot-at-pva-turtle [tiredness-multiplier]
   let effectiveness 1.22 ; lower is worse
   let fire-rate calculate-fire-rate 4 1 20 ; k min-rate max-rate
 
+  ; tiredness affects fire-rate
+  set fire-rate un-hit-probability-with-tiredness fire-rate un-tiredness
+;  print word "un soldier fire rate " fire-rate
+
   if (ticks - last-shot-time >=  fire-rate * 5 - random (5)) [
     set last-shot-time ticks
     let target min-one-of turtles with [color = black] [distance self]
@@ -749,11 +748,6 @@ to go
 
    ; Update UN tiredness
    update-un-tiredness
-
-;  ; Update tiredness for mortars/machguns
-;  ask turtles with [shape = "machine-gun" or shape = "mortar"] [
-;    let _ update-un-tiredness self
-;  ]
 
   ; Mortar fire
   if ticks mod 12 * 5 = 0 [
@@ -924,10 +918,11 @@ to check-end-conditions
   let remaining-pva count turtles with [color = black]
   let remaining-un count turtles with [color = white]
 
-  if (remaining-pva < 0.1 * initial-pva-count) [
-;    print(initial-pva-count)
-;    print(remaining-pva)
-;    print(0.1 * initial-pva-count)
+;  if (remaining-pva < 0.1 * initial-pva-count) [
+  if (remaining-pva * troops-per-agent < 1000 and random 1.0 < 0.1) [
+    print(initial-pva-count)
+    print(remaining-pva)
+    print(0.1 * initial-pva-count)
 ;    print(initial-pva-troops)
 ;    print(un-total-kills * troops-per-agent)
     display ; update plots
@@ -1007,23 +1002,6 @@ to fade-rings
 end
 
 
-;to-report update-un-tiredness
-;  let un-tiredness-multiplier 0
-;
-;;  ask soldier [
-;    ; logistic decay function (tiredness initially decreases at a slow rate, then at a faster rate, and then slows back down)
-;    ; tiredness lies in range [un-baseline-tiredness, 100]
-;    let decay-rate 0.005 - 0.004 * (0.6 * steepness-multiplier + 0.4 * weapons-multiplier) ; steepness contributes 60%, weapons 40%
-;    let t0 600  ; midpoint where rate is highest (tiredness decreases fastest)
-;
-;    ; update tiredness
-;    set un-tiredness un-baseline-tiredness + (un-initial-tiredness - un-baseline-tiredness) / (1 + exp(decay-rate * (ticks - t0)))
-;    set un-tiredness-multiplier tiredness / 100
-;;  ]
-;
-;  report un-tiredness-multiplier ; return UN tiredness as a percentage
-;end
-
 to update-un-tiredness
   ; logistic decay function (tiredness initially decreases at a slow rate, then at a faster rate, and then slows back down)
   ; tiredness lies in range [un-baseline-tiredness, 100]
@@ -1047,9 +1025,6 @@ to perform-artillery-strike
   let noisy-patch patch round noisy-x round noisy-y
 
   ask noisy-patch [
-
-
-
 
     let immediate-death-zone turtles-here
     let near-zone turtles in-radius 2
@@ -1172,68 +1147,77 @@ end
 ; range (meters): [180, 1844]
 to perform-mortar-strike
   let target nobody
+  let num-shots 18 * 0.5
 
   ;; Define the minimum and maximum range in patches
   let min-range 20  ;; Corresponding to 180 meters (88 m. per patch)
   let max-range 55  ;; Corresponding to 1844 meters
 
-  ;; Find the patch with the highest concentration of PVA troops within range of the firing mortar
-  set target max-one-of patches in-radius max-range [count turtles-here with [color = black]]
+  let fire-rate calculate-fire-rate 4 (num-shots / 2) num-shots ; k min-rate max-rate
 
-  ;; Make sure target isn't too close
-  if (abs [pxcor] of target <= min-range) and (abs [pycor] of target <= min-range) [
-    set target nobody
-  ]
+  ; tiredness affects fire-rate
+  set fire-rate un-hit-probability-with-tiredness fire-rate un-tiredness
+;  print word "mortar fire rate " fire-rate
 
-  if target != nobody [
-    ;; Add some noise to the strike (mimic inaccuracy)
-    let noisy-x ( [pxcor] of target ) + random-normal 2 1
-    let noisy-y ( [pycor] of target ) + random-normal 2 1
-    let noisy-patch patch round noisy-x round noisy-y
+  repeat fire-rate [
+    ;; Find the patch with the highest concentration of PVA troops within range of the firing mortar
+    set target max-one-of patches in-radius max-range [count turtles-here with [color = black]]
 
-    ;; Perform the mortar strike on the chosen patch
-    let nums 0
-    ask noisy-patch [
-      set nums count turtles in-radius 2 with [color = black]
+    ;; Make sure target isn't too close
+    if (abs [pxcor] of target <= min-range) and (abs [pycor] of target <= min-range) [
+      set target nobody
     ]
-    if nums > 0 [
+
+    if target != nobody [
+      ;; Add some noise to the strike (mimic inaccuracy)
+      let noisy-x ( [pxcor] of target ) + random-normal 3 1
+      let noisy-y ( [pycor] of target ) + random-normal 3 1
+      let noisy-patch patch round noisy-x round noisy-y
+
+      ;; Perform the mortar strike on the chosen patch
+      let nums 0
       ask noisy-patch [
-        ;; Define the impact zones (immediate-death-zone and near-zone)
-        let immediate-death-zone turtles-here with [color = black]
-        let near-zone turtles in-radius 2 with [color = black]
+        set nums count turtles in-radius 2 with [color = black]
+      ]
+      if nums > 0 [
+        ask noisy-patch [
+          ;; Define the impact zones (immediate-death-zone and near-zone)
+          let immediate-death-zone turtles-here with [color = black]
+          let near-zone turtles in-radius 2 with [color = black]
 
-        ;; Immediate death chance for black troops
-        ask immediate-death-zone [
-          let prob 0.3
-          ; un-hit-probability-with-tiredness prob [tiredness] of self ; account for tiredness
-          if random-float 1.0 < prob [
-            set un-mortar-kills un-mortar-kills + 1
-            die
+          ;; Immediate death chance for black troops
+          ask immediate-death-zone [
+            let prob 0.2
+            set prob un-hit-probability-with-tiredness prob un-tiredness; tiredness affects shooting prob
+            if random-float 1.0 < prob [
+              set un-mortar-kills un-mortar-kills + 1
+              die
+            ]
           ]
-        ]
 
-        ;; Mortar effect on nearby black troops
-        let near-deaths 0
-        ask near-zone [
-          let prob 0.05
-          ;set prob un-hit-probability-with-tiredness prob [tiredness] of self ; account for tiredness
-          if random-float 1.0 < prob [
-            set near-deaths near-deaths + 1
-            set un-mortar-kills un-mortar-kills + 1
-            die
+          ;; Mortar effect on nearby black troops
+          let near-deaths 0
+          ask near-zone [
+            let prob 0.05
+            set prob un-hit-probability-with-tiredness prob un-tiredness; tiredness affects shooting prob
+            if random-float 1.0 < prob [
+              set near-deaths near-deaths + 1
+              set un-mortar-kills un-mortar-kills + 1
+              die
+            ]
           ]
-        ]
 
-        ;; Visual effect: Change the color of affected patches
-        ask patches in-radius 2 [
-          if pcolor != yellow [ ; avoid coloring permanently
-            set orig-color pcolor
-            set pcolor yellow
+          ;; Visual effect: Change the color of affected patches
+          ask patches in-radius 2 [
+            if pcolor != yellow [ ; avoid coloring permanently
+              set orig-color pcolor
+              set pcolor yellow
+            ]
           ]
-        ]
 
-        ;; Reset the timers for the yellow effect
-        set reset-mortar-timers 2
+          ;; Reset the timers for the yellow effect
+          set reset-mortar-timers 2
+        ]
       ]
     ]
   ]
@@ -1244,13 +1228,13 @@ end
 ; 2000 meter range (111 patches)
 to fire-machine-gun
   let shooting-range 60  ;; Maximum shooting distance
-  let num-shots 48  ;; Max fire rate (per tick)
-  let effectiveness 0.5 ; lower is worse
+  let num-shots 48 * 0.5  ;; Max fire rate (per tick)
+  let effectiveness 0.2 ; lower is worse
 
   let fire-rate calculate-fire-rate 4 (num-shots / 2) num-shots ; k min-rate max-rate
 
   ; tiredness affects fire-rate
-;  set fire-rate un-hit-probability-with-tiredness fire-rate [tiredness] of self
+  set fire-rate un-hit-probability-with-tiredness fire-rate un-tiredness
 ;  print word "machgun fire rate " fire-rate
 
   ;; Fire num-shots times per tick
@@ -1258,7 +1242,7 @@ to fire-machine-gun
     let target min-one-of turtles with [color = black] [distance self]
     if target != nobody and [distance target] of self <= shooting-range [
       let prob compute-hit-probability-for-un self target effectiveness shooting-range hill_cover ;; params: shooter, target, bullet_effectiveness, bullet_range, cover_factor
-      ;set prob un-hit-probability-with-tiredness prob [tiredness] of self ; account for tiredness
+      set prob un-hit-probability-with-tiredness prob un-tiredness; tiredness affects shooting prob
 ;      print word "machgun prob " prob
 
       if random-float 1 < prob and prob > 0.001 [
@@ -1764,7 +1748,7 @@ weapons
 weapons
 0
 1
-0.0
+0.25
 0.01
 1
 NIL
