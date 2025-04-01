@@ -30,6 +30,7 @@ globals [
 
   un-initial-tiredness
   un-baseline-tiredness
+  un-tiredness
 
   ; Custom colors
   dark-green
@@ -252,6 +253,9 @@ to setup
     set weapons-multiplier hill_multiplier
   ]
 
+;  print word "steepness " steepness-multiplier
+;  print word "weapons " weapons-multiplier
+
   ; Set turtle params
   set initial-pva-troops 2000
   set initial-un-troops 100
@@ -260,13 +264,15 @@ to setup
   set last-barrage 0
 
   ; UN tiredness stuff
-  ; tiredness lies in range [un-baseline-tiredness, 100]
-  set un-baseline-tiredness 10 ; never go below this level of tiredness
-  set un-initial-tiredness 10 + 90 * (0.6 * steepness-multiplier + 0.4 * weapons-multiplier) ; steepness contributes 60%, weapons 40%
-  ask turtles with [color = "white"] [
-    ; initialize tiredness values for UN troops
-    set tiredness un-initial-tiredness
-  ]
+  ; tiredness lies in range [un-baseline-tiredness, 1.0]
+  set un-baseline-tiredness 0.1 ; never go below this level of tiredness
+  set un-initial-tiredness min (list (0.1 + 0.9 * (0.6 * steepness-multiplier + 0.4 * weapons-multiplier)) 1.0) ; steepness contributes 60%, weapons 40%
+;  ask turtles with [color = "white" or shape = "mortar" or shape = "machine-gun"] [
+;    ; initialize tiredness values for UN troops
+;    set tiredness un-initial-tiredness
+;  ]
+  ; initialize tiredness
+  set un-tiredness un-initial-tiredness
 
   ; Set custom colors
   set light-green 66
@@ -472,8 +478,8 @@ to spawn-forces
     ; Linear relationship for manual toggling
 ;    set num_morts int((max_factor - 1) * weapons-multiplier + init_morts)
 ;    set num_machguns int((max_factor - 1) * weapons-multiplier + init_morts)
-    set num_morts int((max_morts - init_morts) * weapons-multiplier + init_morts)
-    set num_machguns int((max_machguns - init_machguns) * weapons-multiplier + init_machguns)
+    set num_morts int(weapons-multiplier * max_morts) ; int((max_morts - init_morts) * weapons-multiplier + init_morts)
+    set num_machguns int(weapons-multiplier * max_machguns) ;int((max_machguns - init_machguns) * weapons-multiplier + init_machguns)
   ]
 
   ; Machine guns (default 2)
@@ -673,8 +679,7 @@ to-report compute-hit-probability-for-un [shooter target bullet_effectiveness bu
   let r-theta (4 - ((theta * 100) / 15)) ^ 2
   let R bullet_effectiveness
   let D bullet_range
-  let hit-probability (1 - exp (-1 * R / r-theta)) * exp ((-1 * dist) / D) / 2
-
+  let hit-probability (1 - exp (-1 * R / (r-theta))) * exp ((-1 * dist) / D) / 2
 
   ; Multiply entire prob by cover factor
   set hit-probability hit-probability * (1 - 0.5 * cover_factor)
@@ -703,9 +708,8 @@ to-report un-hit-probability-with-tiredness [base-prob tiredness-multiplier]
   ; tiredness = 0.5 (decently rested) -> 0.67 (33% penalty)
   ; tiredness = 1.0 (completely exhausted) -> 0.41 (59% penalty)
 
-  let base-tiredness un-baseline-tiredness / 100
-;  print(exp(baseline-tiredness - tiredness-multiplier))
-  report base-prob * exp(base-tiredness - tiredness-multiplier)
+;  print exp(un-baseline-tiredness - tiredness-multiplier
+  report base-prob * exp(un-baseline-tiredness - tiredness-multiplier)
 end
 
 
@@ -743,6 +747,14 @@ to go
     perform-artillery-strike
   ]
 
+   ; Update UN tiredness
+   update-un-tiredness
+
+;  ; Update tiredness for mortars/machguns
+;  ask turtles with [shape = "machine-gun" or shape = "mortar"] [
+;    let _ update-un-tiredness self
+;  ]
+
   ; Mortar fire
   if ticks mod 12 * 5 = 0 [
     ask turtles with [shape = "mortar"] [
@@ -766,7 +778,7 @@ to go
   ; UN turtles
   ask turtles with [color = white] [
     ; Update tiredness
-    let tiredness-multiplier update-un-tiredness self
+;    let tiredness-multiplier update-un-tiredness self
 ;    print tiredness-multiplier
 
 ;    ; Check if resting
@@ -779,12 +791,12 @@ to go
 
       ; Shoot
       if ticks mod 5 = 0 [
-        un-turtle-shoot-at-pva-turtle tiredness-multiplier
+        un-turtle-shoot-at-pva-turtle un-tiredness
       ]
 
       ; Close quarters combat: throw grenades or bayonet rush
        if ticks mod 5 = 0 [
-         perform-grenade-bayonet tiredness-multiplier
+         perform-grenade-bayonet un-tiredness
        ]
 ;    ]
   ]
@@ -995,21 +1007,31 @@ to fade-rings
 end
 
 
-to-report update-un-tiredness [soldier]
-  let un-tiredness-multiplier 0
+;to-report update-un-tiredness
+;  let un-tiredness-multiplier 0
+;
+;;  ask soldier [
+;    ; logistic decay function (tiredness initially decreases at a slow rate, then at a faster rate, and then slows back down)
+;    ; tiredness lies in range [un-baseline-tiredness, 100]
+;    let decay-rate 0.005 - 0.004 * (0.6 * steepness-multiplier + 0.4 * weapons-multiplier) ; steepness contributes 60%, weapons 40%
+;    let t0 600  ; midpoint where rate is highest (tiredness decreases fastest)
+;
+;    ; update tiredness
+;    set un-tiredness un-baseline-tiredness + (un-initial-tiredness - un-baseline-tiredness) / (1 + exp(decay-rate * (ticks - t0)))
+;    set un-tiredness-multiplier tiredness / 100
+;;  ]
+;
+;  report un-tiredness-multiplier ; return UN tiredness as a percentage
+;end
 
-  ask soldier [
-    ; logistic decay function (tiredness initially decreases at a slow rate, then at a faster rate, and then slows back down)
-    ; tiredness lies in range [un-baseline-tiredness, 100]
-    let decay-rate 0.005 - 0.004 * (0.6 * steepness-multiplier + 0.4 * weapons-multiplier) ; steepness contributes 60%, weapons 40%
-    let t0 600  ; midpoint where rate is highest (tiredness decreases fastest)
+to update-un-tiredness
+  ; logistic decay function (tiredness initially decreases at a slow rate, then at a faster rate, and then slows back down)
+  ; tiredness lies in range [un-baseline-tiredness, 100]
+  let decay-rate 0.005 - 0.004 * (0.6 * steepness-multiplier + 0.4 * weapons-multiplier) ; steepness contributes 60%, weapons 40%
+  let t0 600  ; midpoint where rate is highest (tiredness decreases fastest)
 
-    ; update tiredness
-    set tiredness un-baseline-tiredness + (un-initial-tiredness - un-baseline-tiredness) / (1 + exp(- decay-rate * (ticks - t0)))
-    set un-tiredness-multiplier tiredness / 100
-  ]
-
-  report un-tiredness-multiplier ; return UN tiredness as a percentage
+  ; update tiredness
+  set un-tiredness un-baseline-tiredness + (un-initial-tiredness - un-baseline-tiredness) / (1 + exp(decay-rate * (ticks - t0)))
 end
 
 ; ########################################################################################################################################
@@ -1090,12 +1112,12 @@ to perform-artillery-barrage
       let strike-patches n-of 350 center-patches
       ask strike-patches [
         let pva-zone turtles-here with [color = black]  ;; PVA troops
-        let un-zone turtles-here with [color = white]    ;; UN troops
+        let un-zone turtles-here with [color = white]   ;; UN troops
 
         ;; 90% chance to die for PVA
         ask pva-zone [
           if random-float 1.0 < 0.9 [
-            print "pva killed from barrage"
+;            print "pva killed from barrage"
             set un-artilerly-kills un-artilerly-kills + 1
             die
           ]
@@ -1182,7 +1204,9 @@ to perform-mortar-strike
 
         ;; Immediate death chance for black troops
         ask immediate-death-zone [
-          if random-float 1.0 < 0.3 [
+          let prob 0.3
+          ; un-hit-probability-with-tiredness prob [tiredness] of self ; account for tiredness
+          if random-float 1.0 < prob [
             set un-mortar-kills un-mortar-kills + 1
             die
           ]
@@ -1191,7 +1215,9 @@ to perform-mortar-strike
         ;; Mortar effect on nearby black troops
         let near-deaths 0
         ask near-zone [
-          if random-float 1.0 < 0.05 [
+          let prob 0.05
+          ;set prob un-hit-probability-with-tiredness prob [tiredness] of self ; account for tiredness
+          if random-float 1.0 < prob [
             set near-deaths near-deaths + 1
             set un-mortar-kills un-mortar-kills + 1
             die
@@ -1223,11 +1249,17 @@ to fire-machine-gun
 
   let fire-rate calculate-fire-rate 4 (num-shots / 2) num-shots ; k min-rate max-rate
 
+  ; tiredness affects fire-rate
+;  set fire-rate un-hit-probability-with-tiredness fire-rate [tiredness] of self
+;  print word "machgun fire rate " fire-rate
+
   ;; Fire num-shots times per tick
   repeat fire-rate [
     let target min-one-of turtles with [color = black] [distance self]
     if target != nobody and [distance target] of self <= shooting-range [
       let prob compute-hit-probability-for-un self target effectiveness shooting-range hill_cover ;; params: shooter, target, bullet_effectiveness, bullet_range, cover_factor
+      ;set prob un-hit-probability-with-tiredness prob [tiredness] of self ; account for tiredness
+;      print word "machgun prob " prob
 
       if random-float 1 < prob and prob > 0.001 [
         set un-machgun-kills un-machgun-kills + 1
@@ -1261,10 +1293,13 @@ to perform-grenade-bayonet [tiredness-multiplier]
 
   ask nearby-turtles [
     if color = black [  ;; If enemy is a PVA soldier
-      let prob random-float 1.0
-      set prob un-hit-probability-with-tiredness prob tiredness-multiplier
-      if prob < 0.4 [  ;; fairly high chance PVA soldier dies (lower accounting for tiredness)
-;        print("grenade/bayonet!")
+      let prob 0.8
+      let tiredness-factor un-hit-probability-with-tiredness 0.8 tiredness-multiplier
+      set prob prob * tiredness-factor
+;      print word "tiredness factor " tiredness-factor
+;      print word "prob " prob
+      if random 1.0 < prob [  ;; high chance PVA soldier dies with close quarter combat (lower accounting for tiredness)
+;        print("grenade/bayonet kill!")
         set un-soldier-kills un-soldier-kills + 1
         die
       ]
@@ -1359,7 +1394,7 @@ hill_multiplier
 hill_multiplier
 0.01
 1.25
-0.25
+0.97
 0.01
 1
 NIL
@@ -1468,7 +1503,7 @@ hill_cover
 hill_cover
 0.0
 1.0
-0.05
+0.07
 0.01
 1
 NIL
@@ -1544,10 +1579,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot pva-kill-rate * troops-per-agent"
 
 PLOT
-830
-216
-990
-336
+1021
+215
+1181
+335
 un soldier kills
 ticks
 kills
@@ -1562,10 +1597,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot un-soldier-kills * troops-per-agent"
 
 PLOT
-1021
-216
-1181
-336
+1207
+215
+1367
+335
 un machine gun kills
 ticks
 kills
@@ -1580,10 +1615,10 @@ PENS
 "default" 1.0 0 -16777216 true "" "plot un-machgun-kills * troops-per-agent"
 
 PLOT
-1212
-216
-1372
-336
+1208
+351
+1368
+471
 un mortar kills
 ticks
 kills
@@ -1701,7 +1736,7 @@ SWITCH
 297
 use-custom-sliders
 use-custom-sliders
-1
+0
 1
 -1000
 
@@ -1713,7 +1748,7 @@ SLIDER
 steepness
 steepness
 0.01
-1.0
+1.25
 1.0
 0.01
 1
@@ -1729,11 +1764,39 @@ weapons
 weapons
 0
 1
-1.0
+0.0
 0.01
 1
 NIL
 HORIZONTAL
+
+TEXTBOX
+31
+386
+181
+404
+*25% is historically accurate
+11
+0.0
+1
+
+PLOT
+832
+216
+992
+336
+un tiredness
+ticks
+tiredness
+0.0
+10.0
+0.0
+1.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot un-tiredness"
 
 @#$#@#$#@
 ## WHAT IS IT?
