@@ -265,10 +265,13 @@ to setup
 
   ; UN tiredness stuff
   ; tiredness lies in range [un-baseline-tiredness, 1.0]
-  set un-baseline-tiredness 0.1 ; never go below this level of tiredness
+  set un-baseline-tiredness 0.05 + 0.1 * (max (list sqrt(steepness-multiplier) 0.3) * max (list sqrt(weapons-multiplier) 0.3)) ; never go below this level of tiredness
 ;  set un-initial-tiredness min (list (0.1 + 0.9 * (0.6 * steepness-multiplier + 0.4 * weapons-multiplier)) 1.0) ; steepness contributes 60%, weapons 40%
-  set un-initial-tiredness min (list (0.1 + 0.9 * (max (list sqrt(steepness-multiplier) 0.3) * max (list sqrt(weapons-multiplier) 0.5))) 1.0)
+  set un-initial-tiredness min (list (0.1 + 0.9 * (max (list sqrt(steepness-multiplier) 0.3) * max (list sqrt(weapons-multiplier) 0.3))) 1.0)
   set un-tiredness un-initial-tiredness
+
+  print word "initial tiredness: " un-initial-tiredness
+  print word "baseline tiredness: " un-baseline-tiredness
 
   ; Set custom colors
   set light-green 66
@@ -589,7 +592,7 @@ end
 
 to un-turtle-shoot-at-pva-turtle [tiredness-multiplier]
   let shooting-range 100  ;; Maximum shooting distance
-  let effectiveness 1.22 ; lower is worse
+  let effectiveness 1.26 ; lower is worse
   let fire-rate calculate-fire-rate 4 1 20 ; k min-rate max-rate
 
   ; tiredness affects fire-rate
@@ -921,10 +924,18 @@ to check-end-conditions
 
   ; End conditions:
   ; 1. remaining PVA < 40% (800 troops)
-  ; 2. remaining UN > 50% (otherwise PVA would keep fighting)
+  ; 2. remaining UN > 40% (otherwise PVA would keep fighting)
   ; 3. incorporate probability for some randomness (5% chance of stop)
-  if (remaining-pva < 0.4 * initial-pva-count and remaining-un > 0.5 * initial-un-count and random 1.0 < 0.05) [
-;  if (remaining-pva * troops-per-agent < 800 and random 1.0 < 0.1) [
+  ; OR
+  ; remaining PVA < 30% (600 troops) and remaining UN > 30% + some extra probability like above
+  ; OR
+  ; remaining PVA < 20% (400 troops) and remaining UN > 20% + some extra probability like above
+  ;
+  ; If UN drops below 20%, they fend for themselves
+
+  if (remaining-pva < 0.4 * initial-pva-count and remaining-un > 0.4 * initial-un-count and random 1.0 < 0.05)
+  or (remaining-pva < 0.3 * initial-pva-count and remaining-un > 0.3 * initial-un-count and random 1.0 < 0.05)
+  or (remaining-pva < 0.2 * initial-pva-count and remaining-un > 0.2 * initial-un-count and random 1.0 < 0.05) [
 ;    print(initial-pva-count)
 ;    print(remaining-pva)
 ;    print(0.1 * initial-pva-count)
@@ -1010,8 +1021,9 @@ end
 to update-un-tiredness
   ; logistic decay function (tiredness initially decreases at a slow rate, then at a faster rate, and then slows back down)
   ; tiredness lies in range [un-baseline-tiredness, 100]
-  let decay-rate 0.005 - 0.004 * (0.1 + 0.9 * (max (list sqrt(steepness-multiplier) 0.3) * max (list sqrt(weapons-multiplier) 0.5)))
-  let t0 600  ; midpoint where rate is highest (tiredness decreases fastest)
+  let decay-rate 0.005 - 0.004 * (0.1 + 0.9 * (max (list sqrt(steepness-multiplier) 0.3) * max (list sqrt(weapons-multiplier) 0.3)))
+  set decay-rate decay-rate * 2
+  let t0 600 ; midpoint where rate is highest (tiredness decreases fastest). A little under 2 hours in
 
   ; update tiredness
   set un-tiredness un-baseline-tiredness + (un-initial-tiredness - un-baseline-tiredness) / (1 + exp(decay-rate * (ticks - t0)))
@@ -1276,14 +1288,14 @@ end
 ;                                                             Close Quarters Combat: Grenades & Bayonet
 ; ########################################################################################################################################
 to perform-grenade-bayonet [tiredness-multiplier]
-  let close-range 0.5  ;; We'll say grenade/bayonet is effective when they're in the same patch
+  let close-range 0.75  ;; We'll say grenade/bayonet is effective when they're in the same patch
 
   ;; Find all nearby turtles within the close-range threshold
   let nearby-turtles turtles in-radius close-range
 
   ask nearby-turtles [
     if color = black [  ;; If enemy is a PVA soldier
-      let prob 0.8
+      let prob 0.85
       let tiredness-factor un-hit-probability-with-tiredness 0.8 tiredness-multiplier
       set prob prob * tiredness-factor
 ;      print word "tiredness factor " tiredness-factor
