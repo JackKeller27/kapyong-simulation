@@ -345,7 +345,7 @@ to spawn-forces
 
   ; SPAWN CHINESE (PVA) FIRST
   let cluster-radius-pva 20 ;; Controls spread of each cluster
-  let cluster-size-pva initial-pva-troops / 9 / troops-per-agent
+  let cluster-size-pva initial-pva-troops / 9.0 / troops-per-agent
   let offset (cluster-radius-pva / 2)
 
   set global-max-patch max-one-of patches [elevation-value]
@@ -618,7 +618,7 @@ end
 
 to pva-turtle-shoot-at-un-turtle [energy-multiplier]
   let shooting-range 100  ;; Maximum shooting distance
-  let effectiveness 1.1 ; slightly less effective than UN
+  let effectiveness 1.15 ; slightly less effective than UN
   let fire-rate calculate-fire-rate 4 1 35 ; k min-rate max-rate
 
   if (ticks -  last-shot-time >=  fire-rate * 5 - random (5)) [
@@ -732,8 +732,6 @@ to go
     set last-un-kills un-total-kills
     set last-pva-kills pva-soldier-kills
   ]
-
-  check-end-conditions
 
   ;; STEPS PER TICK
   ;; 1. Perform artillery strikes
@@ -910,20 +908,26 @@ to go
   ]
 
 ;  fade-rings
+  check-end-conditions
   tick
 end
 
 to check-end-conditions
 
   let initial-pva-count initial-pva-troops / troops-per-agent
+  let initial-un-count initial-un-troops / troops-per-agent
   let remaining-pva count turtles with [color = black]
   let remaining-un count turtles with [color = white]
 
-;  if (remaining-pva < 0.1 * initial-pva-count) [
-  if (remaining-pva * troops-per-agent < 800 and random 1.0 < 0.1) [
-    print(initial-pva-count)
-    print(remaining-pva)
-    print(0.1 * initial-pva-count)
+  ; End conditions:
+  ; 1. remaining PVA < 40% (800 troops)
+  ; 2. remaining UN > 50% (otherwise PVA would keep fighting)
+  ; 3. incorporate probability for some randomness (5% chance of stop)
+  if (remaining-pva < 0.4 * initial-pva-count and remaining-un > 0.5 * initial-un-count and random 1.0 < 0.05) [
+;  if (remaining-pva * troops-per-agent < 800 and random 1.0 < 0.1) [
+;    print(initial-pva-count)
+;    print(remaining-pva)
+;    print(0.1 * initial-pva-count)
 ;    print(initial-pva-troops)
 ;    print(un-total-kills * troops-per-agent)
     display ; update plots
@@ -1010,7 +1014,7 @@ to update-un-tiredness
   let t0 600  ; midpoint where rate is highest (tiredness decreases fastest)
 
   ; update tiredness
-  set un-tiredness un-baseline-tiredness + (un-initial-tiredness - un-baseline-tiredness) / (1 + exp(-decay-rate * (ticks - t0)))
+  set un-tiredness un-baseline-tiredness + (un-initial-tiredness - un-baseline-tiredness) / (1 + exp(decay-rate * (ticks - t0)))
 end
 
 ; ########################################################################################################################################
@@ -1028,27 +1032,28 @@ to perform-artillery-strike
   ask noisy-patch [
 
     let immediate-death-zone turtles-here
-    let near-zone turtles in-radius 2
+    let near-zone turtles in-radius 0.5
 
     let sure-deaths 0
     ask immediate-death-zone [
-      if random-float 1.0 < 0.5 [  ; 90% chance to die
+      if random-float 1.0 < 0.25 [  ; 25% chance to die
+        set sure-deaths sure-deaths + 1
         set un-artilerly-kills un-artilerly-kills + 1
         die
-
       ]
     ]
-    ; print (word "Total turtles immediately killed: " sure-deaths)
+;     print (word "Total turtles immediately killed: " sure-deaths)
 
-    ; Calculate and execute probabilistic effects in the surrounding area TODO
+    ; Calculate and execute probabilistic effects in the surrounding area
     let near-deaths 0
       ask near-zone [
-        if random-float 1.0 < 0.1 [  ; 30% chance to die
+        if random-float 1.0 < 0.05 [  ; 5% chance to die
           set near-deaths near-deaths + 1
+          set un-artilerly-kills un-artilerly-kills + 1
           die
         ]
       ]
-      ; print (word "Total turtles killed in the near zone: " near-deaths)
+;       print (word "Total turtles killed in the near zone: " near-deaths)
 
 
 
@@ -1090,9 +1095,9 @@ to perform-artillery-barrage
         let pva-zone turtles-here with [color = black]  ;; PVA troops
         let un-zone turtles-here with [color = white]   ;; UN troops
 
-        ;; 90% chance to die for PVA
+        ;; 80% chance to die for PVA
         ask pva-zone [
-          if random-float 1.0 < 0.9 [
+          if random-float 1.0 < 0.8 [
 ;            print "pva killed from barrage"
             set un-artilerly-kills un-artilerly-kills + 1
             die
@@ -1154,7 +1159,7 @@ to perform-mortar-strike
   let min-range 20  ;; Corresponding to 180 meters (88 m. per patch)
   let max-range 55  ;; Corresponding to 1844 meters
 
-  let fire-rate calculate-fire-rate 4 (num-shots / 2) num-shots ; k min-rate max-rate
+  let fire-rate calculate-fire-rate 4 (num-shots / ) num-shots ; k min-rate max-rate
 
   ; tiredness affects fire-rate
   set fire-rate un-hit-probability-with-tiredness fire-rate un-tiredness
@@ -1188,7 +1193,7 @@ to perform-mortar-strike
 
           ;; Immediate death chance for black troops
           ask immediate-death-zone [
-            let prob 0.2
+            let prob 0.15
             set prob un-hit-probability-with-tiredness prob un-tiredness; tiredness affects shooting prob
             if random-float 1.0 < prob [
               set un-mortar-kills un-mortar-kills + 1
@@ -1230,9 +1235,9 @@ end
 to fire-machine-gun
   let shooting-range 60  ;; Maximum shooting distance
   let num-shots 48 * 0.5  ;; Max fire rate (per tick)
-  let effectiveness 0.2 ; lower is worse
+  let effectiveness 0.4 ; lower is worse
 
-  let fire-rate calculate-fire-rate 4 (num-shots / 2) num-shots ; k min-rate max-rate
+  let fire-rate calculate-fire-rate 4 (num-shots / 4) num-shots ; k min-rate max-rate
 
   ; tiredness affects fire-rate
   set fire-rate un-hit-probability-with-tiredness fire-rate un-tiredness
@@ -1734,7 +1739,7 @@ steepness
 steepness
 0.01
 1.25
-0.93
+1.0
 0.01
 1
 NIL
@@ -1749,7 +1754,7 @@ weapons
 weapons
 0
 1
-0.98
+0.25
 0.01
 1
 NIL
@@ -1767,12 +1772,12 @@ TEXTBOX
 
 PLOT
 832
-216
+215
 992
-336
-un tiredness
+335
+un fatigue
 ticks
-tiredness
+fatigue
 0.0
 10.0
 0.0
