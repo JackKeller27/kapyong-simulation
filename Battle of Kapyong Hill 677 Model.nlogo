@@ -1021,8 +1021,7 @@ end
 to update-un-tiredness
   ; logistic decay function (tiredness initially decreases at a slow rate, then at a faster rate, and then slows back down)
   ; tiredness lies in range [un-baseline-tiredness, 100]
-  let decay-rate 0.005 - 0.004 * (0.1 + 0.9 * (max (list sqrt(steepness-multiplier) 0.3) * max (list sqrt(weapons-multiplier) 0.3)))
-  set decay-rate decay-rate * 2
+  let decay-rate 0.01 ; - 0.008 * (0.1 + 0.9 * (max (list sqrt(steepness-multiplier) 0.3) * max (list sqrt(weapons-multiplier) 0.3)))
   let t0 600 ; midpoint where rate is highest (tiredness decreases fastest). A little under 2 hours in
 
   ; update tiredness
@@ -1766,7 +1765,7 @@ weapons
 weapons
 0
 1
-0.25
+0.85
 0.01
 1
 NIL
