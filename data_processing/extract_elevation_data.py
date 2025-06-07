@@ -80,9 +80,9 @@ grid_points = generate_grid(hill_677_poly)
 print(len(grid_points))
 
 # Fetch elevation data using Google Elevation API
-API_KEY = "AIzaSyAFxzsLZdxmzVZtKWZ80xLh1xRBoMDNfM0"  # https://console.cloud.google.com/google/maps-apis/home?project=battle-of-kapyong&inv=1&invt=AbpIjA&supportedpurview=project
+# TODO: INSERT API KEY HERE
+API_KEY = ""
 
-def get_elevation(lat, lon):
     url = f"https://maps.googleapis.com/maps/api/elevation/json?locations={lat},{lon}&key={API_KEY}"
     response = requests.get(url).json()
     if "results" in response and len(response["results"]) > 0:
